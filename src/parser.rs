@@ -21,7 +21,6 @@ impl Semver {
     }
 }
 
-#[allow(dead_code)]
 pub fn semver(input: &str) -> IResult<&str, Semver> {
     map(
         tuple((u64, tag("."), u64, tag("."), u64)),
@@ -35,7 +34,6 @@ fn test_semver() {
     assert_eq!(semver("1.2.3-alpha"), Ok(("-alpha", Semver::new(1, 2, 3))));
 }
 
-#[allow(dead_code)]
 pub fn range(input: &str) -> IResult<&str, (Semver, Semver)> {
     map(tuple((semver, tag(" - "), semver)), |(start, _, end)| {
         (start, end)

@@ -45,7 +45,7 @@ jobs:
         run: cargo fmt -- --check --verbose
 
       - name: Lint
-        run: cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings -A dead_code
 
       - name: Test
         run: cargo test --verbose
