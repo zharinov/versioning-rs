@@ -57,40 +57,18 @@ where
             };
         }
 
-        return match (&x.edge, &y.edge) {
-            (Hole, Hole) => Some(x),
-            (Point, Point) => Some(x),
-
-            (Hole, Point) => Some(y),
-            (Point, Hole) => Some(x),
-
-            (Hole | Point, Neighborhood(dy)) => {
-                if dy == direction {
-                    Some(x)
-                } else {
-                    Some(y)
-                }
-            }
-            (Neighborhood(dx), Hole | Point) => {
-                if dx == direction {
-                    Some(y)
-                } else {
-                    Some(x)
-                }
-            }
-
-            (Neighborhood(dx), Neighborhood(dy)) => {
-                if dx == dy {
-                    return Some(x);
-                }
-
-                if dy == direction {
-                    Some(x)
-                } else {
-                    Some(y)
-                }
-            }
+        let edge_rank = |edge: &Edge| match edge {
+            Neighborhood(d) if d == direction => 1,
+            Hole => 2,
+            Point => 3,
+            Neighborhood(_) => 4,
         };
+
+        if edge_rank(&x.edge) >= edge_rank(&y.edge) {
+            Some(x)
+        } else {
+            Some(y)
+        }
     }
 }
 
