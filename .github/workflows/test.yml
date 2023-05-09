@@ -41,7 +41,7 @@ jobs:
         run: cargo fmt -- --check --verbose
 
       - name: Lint
-        run: cargo clippy -- -F warnings
+        run: cargo clippy -- -D warnings
 
       - name: Test
         run: cargo test --verbose

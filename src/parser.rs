@@ -21,7 +21,8 @@ impl Semver {
     }
 }
 
-fn semver(input: &str) -> IResult<&str, Semver> {
+#[allow(dead_code)]
+pub fn semver(input: &str) -> IResult<&str, Semver> {
     map(
         tuple((u64, tag("."), u64, tag("."), u64)),
         |(major, _, minor, _, patch)| Semver::new(major, minor, patch),
@@ -34,7 +35,8 @@ fn test_semver() {
     assert_eq!(semver("1.2.3-alpha"), Ok(("-alpha", Semver::new(1, 2, 3))));
 }
 
-fn range(input: &str) -> IResult<&str, (Semver, Semver)> {
+#[allow(dead_code)]
+pub fn range(input: &str) -> IResult<&str, (Semver, Semver)> {
     map(tuple((semver, tag(" - "), semver)), |(start, _, end)| {
         (start, end)
     })(input)
