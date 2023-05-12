@@ -8,7 +8,6 @@ pub enum Direction {
 pub enum Edge {
     Hole,
     Point,
-    Neighborhood(Direction),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -58,10 +57,8 @@ where
         }
 
         let edge_rank = |edge: &Edge| match edge {
-            Neighborhood(d) if d == direction => 1,
-            Hole => 2,
-            Point => 3,
-            Neighborhood(_) => 4,
+            Hole => 0,
+            Point => 1,
         };
 
         if edge_rank(&x.edge) >= edge_rank(&y.edge) {
@@ -84,5 +81,15 @@ mod tests {
         let res = Interval::dedupe_union(&x, &y);
 
         assert_eq!(res, Some(&y));
+    }
+
+    #[test]
+    fn dedupe_union2() {
+        let x = Interval::new(0, Direction::Left, Edge::Point);
+        let y = Interval::new(0, Direction::Left, Edge::Hole);
+
+        let res = Interval::dedupe_union(&x, &y);
+
+        assert_eq!(res, Some(&x));
     }
 }
