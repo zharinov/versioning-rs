@@ -12,17 +12,17 @@ use winnow::{IResult, Parser};
 
 #[derive(Debug, PartialEq)]
 enum RawToken {
-    RNum(u32),
-    RQual(String),
-    RDot,
-    RHyphen,
+    Num(u32),
+    Qual(String),
+    Dot,
+    Hyphen,
 }
 
 enum RawTokenType {
-    RNumT,
-    RQualT,
-    RDotT,
-    RHyphenT,
+    NumT,
+    QualT,
+    DotT,
+    HyphenT,
 }
 
 #[derive(Debug, PartialEq)]
@@ -42,26 +42,26 @@ fn number(input: &str) -> IResult<&str, RawToken> {
     digit1
         .try_map(|s| -> Result<RawToken, std::num::ParseIntError> {
             let num = str::parse::<u32>(s)?;
-            Ok(RawToken::RNum(num))
+            Ok(RawToken::Num(num))
         })
         .parse_next(input)
 }
 
 fn qualifier(input: &str) -> IResult<&str, RawToken> {
-    take_while(1.., |c: char| match c {
-        'a'..='z' | 'A'..='Z' | '+' | '_' => true,
-        _ => false,
-    })
-    .map(|s: &str| RawToken::RQual(s.to_string()))
+    take_while(
+        1..,
+        |c: char| matches!(c, 'a'..='z' | 'A'..='Z' | '+' | '_'),
+    )
+    .map(|s: &str| RawToken::Qual(s.to_string()))
     .parse_next(input)
 }
 
 fn dot_separator(input: &str) -> IResult<&str, RawToken> {
-    '.'.map(|_| RawToken::RDot).parse_next(input)
+    '.'.map(|_| RawToken::Dot).parse_next(input)
 }
 
 fn hyphen_separator(input: &str) -> IResult<&str, RawToken> {
-    '-'.map(|_| RawToken::RHyphen).parse_next(input)
+    '-'.map(|_| RawToken::Hyphen).parse_next(input)
 }
 
 fn raw_token(input: &str) -> IResult<&str, RawToken> {
@@ -76,55 +76,54 @@ fn calculate_token(
     raw_token: Option<RawToken>,
     prev_token_type: Option<RawTokenType>,
 ) -> (Option<Token>, Option<RawTokenType>) {
-    use Prefix::{Dot, Hyphen, ImplicitHyphen};
-    use RawToken::{RDot, RHyphen, RNum, RQual};
-    use RawTokenType::{RDotT, RHyphenT, RNumT, RQualT};
+    use RawToken::{Dot, Hyphen, Num, Qual};
+    use RawTokenType::{DotT, HyphenT, NumT, QualT};
     use Token::{Number, Qualifier};
 
     let raw_token_type = match raw_token {
-        Some(RNum(_)) => Some(RNumT),
-        Some(RQual(_)) => Some(RQualT),
-        Some(RDot) => Some(RDotT),
-        Some(RHyphen) => Some(RHyphenT),
+        Some(Num(_)) => Some(NumT),
+        Some(Qual(_)) => Some(QualT),
+        Some(Dot) => Some(DotT),
+        Some(Hyphen) => Some(HyphenT),
         None => None,
     };
 
     #[rustfmt::skip]
     let token = match (prev_token_type, raw_token) {
         // Leading hyphen is the specifics of this implementation
-        (None, Some(RNum(value)))  => Some(Number    { prefix: Hyphen, value }),
-        (None, Some(RQual(value))) => Some(Qualifier { prefix: Hyphen, value }),
+        (None, Some(Num(value)))  => Some(Number    { prefix: Prefix::Hyphen, value }),
+        (None, Some(Qual(value))) => Some(Qualifier { prefix: Prefix::Hyphen, value }),
         
         // Empty tokens are replaced with "0"
-        (None,           Some(RHyphen)) => Some(Number { prefix: Hyphen, value: 0 }),
-        (None,           Some(RDot))    => Some(Number { prefix: Dot, value: 0 }),
-        (Some(RHyphenT), Some(RHyphen)) => Some(Number { prefix: Hyphen, value: 0 }),
-        (Some(RHyphenT), Some(RDot))    => Some(Number { prefix: Hyphen, value: 0 }),
-        (Some(RDotT),    Some(RHyphen)) => Some(Number { prefix: Dot, value: 0 }),
-        (Some(RDotT),    Some(RDot))    => Some(Number { prefix: Dot, value: 0 }),
-        (Some(RHyphenT), None)          => Some(Number { prefix: Hyphen, value: 0 }),
-        (Some(RDotT),    None)          => Some(Number { prefix: Dot, value: 0 }),
+        (None,           Some(Hyphen)) => Some(Number { prefix: Prefix::Hyphen, value: 0 }),
+        (None,           Some(Dot))    => Some(Number { prefix: Prefix::Dot, value: 0 }),
+        (Some(HyphenT), Some(Hyphen))  => Some(Number { prefix: Prefix::Hyphen, value: 0 }),
+        (Some(HyphenT), Some(Dot))     => Some(Number { prefix: Prefix::Hyphen, value: 0 }),
+        (Some(DotT),    Some(Hyphen))  => Some(Number { prefix: Prefix::Dot, value: 0 }),
+        (Some(DotT),    Some(Dot))     => Some(Number { prefix: Prefix::Dot, value: 0 }),
+        (Some(HyphenT), None)          => Some(Number { prefix: Prefix::Hyphen, value: 0 }),
+        (Some(DotT),    None)          => Some(Number { prefix: Prefix::Dot, value: 0 }),
 
         // Normal transitions explicitly prefixed by '.' or '-'
-        (Some(RHyphenT), Some(RNum(value)))  => Some(Number    { prefix: Hyphen, value }),
-        (Some(RHyphenT), Some(RQual(value))) => Some(Qualifier { prefix: Hyphen, value }),
-        (Some(RDotT),    Some(RNum(value)))  => Some(Number    { prefix: Dot, value }),
-        (Some(RDotT),    Some(RQual(value))) => Some(Qualifier { prefix: Dot, value }),
+        (Some(HyphenT), Some(Num(value)))  => Some(Number    { prefix: Prefix::Hyphen, value }),
+        (Some(HyphenT), Some(Qual(value))) => Some(Qualifier { prefix: Prefix::Hyphen, value }),
+        (Some(DotT),    Some(Num(value)))  => Some(Number    { prefix: Prefix::Dot, value }),
+        (Some(DotT),    Some(Qual(value))) => Some(Qualifier { prefix: Prefix::Dot, value }),
         
         // A transition between digits and characters is equivalent to a hyphen
-        (Some(RQualT), Some(RNum(value)))  => Some(Number    { prefix: ImplicitHyphen, value }),
-        (Some(RNumT),  Some(RQual(value))) => Some(Qualifier { prefix: ImplicitHyphen, value }),
+        (Some(QualT), Some(Num(value)))  => Some(Number    { prefix: Prefix::ImplicitHyphen, value }),
+        (Some(NumT),  Some(Qual(value))) => Some(Qualifier { prefix: Prefix::ImplicitHyphen, value }),
 
         // Transitions that don't produce new tokens
-        (Some(RNumT),  Some(RNum(_)))  => None,
-        (Some(RNumT),  Some(RHyphen))  => None,
-        (Some(RNumT),  Some(RDot))     => None,
-        (Some(RQualT), Some(RQual(_))) => None,
-        (Some(RQualT), Some(RHyphen))  => None,
-        (Some(RQualT), Some(RDot))     => None,
-        (Some(RNumT),  None)           => None,
-        (Some(RQualT), None)           => None,
-        (None,         None)           => None
+        (Some(NumT),  Some(Num(_)))  => None,
+        (Some(NumT),  Some(Hyphen))  => None,
+        (Some(NumT),  Some(Dot))     => None,
+        (Some(QualT), Some(Qual(_))) => None,
+        (Some(QualT), Some(Hyphen))  => None,
+        (Some(QualT), Some(Dot))     => None,
+        (Some(NumT),  None)          => None,
+        (Some(QualT), None)          => None,
+        (None,        None)          => None
     };
 
     (token, raw_token_type)
@@ -160,29 +159,29 @@ mod maven_test {
 
     #[test]
     fn test_number() {
-        assert_eq!(number("123"), Ok(("", RawToken::RNum(123))));
-        assert_eq!(number("0"), Ok(("", RawToken::RNum(0))));
-        assert_eq!(number("1"), Ok(("", RawToken::RNum(1))));
-        assert_eq!(number("01"), Ok(("", RawToken::RNum(1))));
+        assert_eq!(number("123"), Ok(("", RawToken::Num(123))));
+        assert_eq!(number("0"), Ok(("", RawToken::Num(0))));
+        assert_eq!(number("1"), Ok(("", RawToken::Num(1))));
+        assert_eq!(number("01"), Ok(("", RawToken::Num(1))));
     }
 
     #[test]
     fn test_qualifier() {
         assert_eq!(
             qualifier("foobar"),
-            Ok(("", RawToken::RQual("foobar".to_string())))
+            Ok(("", RawToken::Qual("foobar".to_string())))
         );
         assert_eq!(
             qualifier("foo_bar"),
-            Ok(("", RawToken::RQual("foo_bar".to_string())))
+            Ok(("", RawToken::Qual("foo_bar".to_string())))
         );
         assert_eq!(
             qualifier("foo+bar"),
-            Ok(("", RawToken::RQual("foo+bar".to_string())))
+            Ok(("", RawToken::Qual("foo+bar".to_string())))
         );
         assert_eq!(
             qualifier("foo0bar"),
-            Ok(("0bar", RawToken::RQual("foo".to_string())))
+            Ok(("0bar", RawToken::Qual("foo".to_string())))
         );
     }
 
