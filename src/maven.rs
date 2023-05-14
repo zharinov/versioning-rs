@@ -268,7 +268,7 @@ impl PartialOrd for Version {
                         return Some(order);
                     }
                 }
-                (None, None) => return None,
+                (None, None) => unreachable!(),
             }
         }
 
