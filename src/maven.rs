@@ -201,8 +201,8 @@ fn cmp_tokens(left: &Token, right: &Token) -> Ordering {
     let right_rank = qualifier_rank(right);
     match (left_rank, right_rank) {
         (Some(left_rank), Some(right_rank)) => left_rank.cmp(&right_rank),
-        (Some(left_rank), _) if left_rank < 6 => Ordering::Less,
-        (_, Some(right_rank)) if right_rank < 6 => Ordering::Greater,
+        (Some(left_rank), _) if left_rank < RELEASE_RANK => Ordering::Less,
+        (_, Some(right_rank)) if right_rank < RELEASE_RANK => Ordering::Greater,
         _ => match (&left.value, &right.value) {
             (TokenValue::Number(left), TokenValue::Number(right)) => left.cmp(right),
             (TokenValue::Qualifier(left), TokenValue::Qualifier(right)) => left.cmp(right),
