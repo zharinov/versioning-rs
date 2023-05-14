@@ -1,0 +1,12 @@
+[tasks.clean]
+command = "cargo"
+args = ["clean"]
+
+[tasks.format]
+install_crate = "rustfmt"
+command = "cargo"
+args = ["fmt", "--", "--emit=files"]
+
+[tasks.cov]
+command = "cargo"
+args = ["llvm-cov", "--open", "--output-dir", ".coverage"]
