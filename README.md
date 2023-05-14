@@ -1,0 +1,1 @@
+[![codecov](https://codecov.io/gh/zharinov/verver/branch/main/graph/badge.svg?token=OCm4RFELiv)](https://codecov.io/gh/zharinov/verver)
