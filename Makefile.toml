@@ -9,4 +9,8 @@ args = ["fmt", "--", "--emit=files"]
 
 [tasks.cov]
 command = "cargo"
-args = ["llvm-cov", "--open", "--output-dir", ".coverage"]
+args = ["llvm-cov", "nextest", "--open", "--output-dir", ".coverage"]
+
+[tasks.test]
+command = "cargo"
+args = ["nextest", "run"]

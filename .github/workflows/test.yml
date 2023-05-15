@@ -38,6 +38,12 @@ jobs:
           rustc --version
           cargo clippy --version
 
+      - name: Install cargo-nextest
+        uses: baptiste0928/cargo-install@v1
+        with:
+          crate: cargo-nextest
+          locked: true
+
       - name: Check package
         run: cargo check --verbose
 
