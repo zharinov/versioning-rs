@@ -1,0 +1,11 @@
+---
+source: src/maven.rs
+expression: "get_tokens(\"m1\")"
+---
+- prefix: Hyphen
+  value:
+    Qualifier: milestone
+- prefix: Hyphen
+  value:
+    Number: 1
+

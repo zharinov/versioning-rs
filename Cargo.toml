@@ -4,5 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rstest = "0.17.0"
 winnow = "0.4.6"
+
+[dev-dependencies]
+rstest = "0.17.0"
+insta = { version = "1.29.0", features = ["yaml"] }
+serde = "1.0.163"
+
+[profile.dev.package.insta]
+opt-level = 3
+
+[profile.dev.package.similar]
+opt-level = 3
