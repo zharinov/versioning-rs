@@ -14,3 +14,7 @@ args = ["llvm-cov", "nextest", "--open", "--output-dir", ".coverage"]
 [tasks.test]
 command = "cargo"
 args = ["nextest", "run"]
+
+[tasks.test-watch]
+command = "cargo"
+args = ["watch", "-x", "nextest run"]

@@ -291,211 +291,134 @@ impl PartialOrd for Version {
 #[cfg(test)]
 mod maven_test {
     use super::*;
-
-    #[test]
-    fn parse_number() {
-        assert_eq!(number("123"), Ok(("", RawToken::Num(123))));
-        assert_eq!(number("0"), Ok(("", RawToken::Num(0))));
-        assert_eq!(number("1"), Ok(("", RawToken::Num(1))));
-        assert_eq!(number("01"), Ok(("", RawToken::Num(1))));
-    }
-
-    #[test]
-    fn parse_qualifier() {
-        assert_eq!(qualifier("foobar"), Ok(("", RawToken::Qual("foobar"))));
-        assert_eq!(qualifier("foo_bar"), Ok(("", RawToken::Qual("foo_bar"))));
-        assert_eq!(qualifier("foo+bar"), Ok(("", RawToken::Qual("foo+bar"))));
-        assert_eq!(qualifier("foo0bar"), Ok(("0bar", RawToken::Qual("foo"))));
-    }
-
-    #[test]
-    fn tokenize() {
-        assert_eq!(
-            tokens("1.2.3"),
-            Ok((
-                "",
-                vec![
-                    Token {
-                        prefix: Separator::Hyphen,
-                        value: TokenValue::Number(1),
-                    },
-                    Token {
-                        prefix: Separator::Dot,
-                        value: TokenValue::Number(2),
-                    },
-                    Token {
-                        prefix: Separator::Dot,
-                        value: TokenValue::Number(3),
-                    }
-                ]
-            ))
-        );
-
-        assert_eq!(
-            tokens("1.2.3-foo"),
-            Ok((
-                "",
-                vec![
-                    Token {
-                        prefix: Separator::Hyphen,
-                        value: TokenValue::Number(1),
-                    },
-                    Token {
-                        prefix: Separator::Dot,
-                        value: TokenValue::Number(2),
-                    },
-                    Token {
-                        prefix: Separator::Dot,
-                        value: TokenValue::Number(3),
-                    },
-                    Token {
-                        prefix: Separator::Hyphen,
-                        value: TokenValue::Qualifier("foo".to_string()),
-                    }
-                ]
-            ))
-        );
-
-        assert_eq!(
-            tokens("1.2.3"),
-            Ok((
-                "",
-                vec![
-                    Token {
-                        prefix: Separator::Hyphen,
-                        value: TokenValue::Number(1),
-                    },
-                    Token {
-                        prefix: Separator::Dot,
-                        value: TokenValue::Number(2),
-                    },
-                    Token {
-                        prefix: Separator::Dot,
-                        value: TokenValue::Number(3),
-                    },
-                ]
-            ))
-        );
-
-        assert_eq!(
-            tokens("m1"),
-            Ok((
-                "",
-                vec![
-                    Token {
-                        prefix: Separator::Hyphen,
-                        value: TokenValue::Qualifier("milestone".to_string()),
-                    },
-                    Token {
-                        prefix: Separator::Hyphen,
-                        value: TokenValue::Number(1),
-                    },
-                ]
-            ))
-        );
-
-        assert_eq!(
-            tokens("1m"),
-            Ok((
-                "",
-                vec![
-                    Token {
-                        prefix: Separator::Hyphen,
-                        value: TokenValue::Number(1),
-                    },
-                    Token {
-                        prefix: Separator::Hyphen,
-                        value: TokenValue::Qualifier("m".to_string()),
-                    },
-                ]
-            ))
-        );
-
-        assert_eq!(
-            tokens("0m0"),
-            Ok((
-                "",
-                vec![Token {
-                    prefix: Separator::Hyphen,
-                    value: TokenValue::Qualifier("milestone".to_string()),
-                },]
-            ))
-        );
-
-        assert_eq!(
-            tokens("1-1.foo-bar1baz-.1"),
-            Ok((
-                "",
-                vec![
-                    Token {
-                        prefix: Separator::Hyphen,
-                        value: TokenValue::Number(1)
-                    },
-                    Token {
-                        prefix: Separator::Hyphen,
-                        value: TokenValue::Number(1)
-                    },
-                    Token {
-                        prefix: Separator::Dot,
-                        value: TokenValue::Qualifier("foo".to_string()),
-                    },
-                    Token {
-                        prefix: Separator::Hyphen,
-                        value: TokenValue::Qualifier("bar".to_string()),
-                    },
-                    Token {
-                        prefix: Separator::Hyphen,
-                        value: TokenValue::Number(1),
-                    },
-                    Token {
-                        prefix: Separator::Hyphen,
-                        value: TokenValue::Qualifier("baz".to_string()),
-                    },
-                    Token {
-                        prefix: Separator::Hyphen,
-                        value: TokenValue::Number(0),
-                    },
-                    Token {
-                        prefix: Separator::Dot,
-                        value: TokenValue::Number(1),
-                    },
-                ]
-            ))
-        );
-
-        assert_eq!(
-            tokens("1-1.foo-bar1baz-.1"),
-            tokens("1-1.foo-bar-1-baz-0.1"),
-        );
-
-        assert_eq!(tokens("1.0.0"), tokens("1"),);
-        assert_eq!(tokens("1.ga"), tokens("1"),);
-        assert_eq!(tokens("1.final"), tokens("1"),);
-        assert_eq!(tokens("1.0"), tokens("1"),);
-        assert_eq!(tokens("1."), tokens("1"),);
-        assert_eq!(tokens("1-"), tokens("1"),);
-        assert_eq!(tokens("1.0.0-foo.0.0"), tokens("1-foo"),);
-        assert_eq!(tokens("1.0.0-0.0.0"), tokens("1"),);
-    }
-
-    #[test]
-    fn test_versions() {
-        let left = Version::new("1.2.3").unwrap();
-        let right = Version::new("1.2.3").unwrap();
-        assert_eq!(left, right);
-
-        let left = Version::new("1.2.3").unwrap();
-        let right = Version::new("1.2.4").unwrap();
-        assert!(left < right);
-        assert!(right > left);
-
-        let left = Version::new("1.2.3").unwrap();
-        let right = Version::new("1.2.3-foo").unwrap();
-        assert!(left < right);
-        assert!(right > left);
-    }
-
+    use insta::*;
     use rstest::rstest;
+    use serde::ser::{Serialize, SerializeStruct, Serializer};
+
+    #[rstest]
+    #[case("0", 0)]
+    #[case("1", 1)]
+    #[case("123", 123)]
+    #[case("000123", 123)]
+    #[case("000123000", 123000)]
+    fn parse_number(#[case] input: &str, #[case] expected: u32) {
+        let (_, res) = number(input).unwrap();
+        assert_eq!(res, RawToken::Num(expected));
+    }
+
+    #[rstest]
+    #[case("foobar", "foobar")]
+    #[case("foo_bar", "foo_bar")]
+    #[case("foo+bar", "foo+bar")]
+    #[case("foo0bar", "foo")]
+    #[case("foo.bar", "foo")]
+    #[case("foo-bar", "foo")]
+    fn parse_qualifier(#[case] input: &str, #[case] expected: &str) {
+        let (_, res) = qualifier(input).unwrap();
+        assert_eq!(res, RawToken::Qual(expected));
+    }
+
+    impl Serialize for Separator {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            match self {
+                Separator::Dot => serializer.serialize_unit_variant("Separator", 0, "Dot"),
+                Separator::Hyphen => serializer.serialize_unit_variant("Separator", 0, "Hyphen"),
+            }
+        }
+    }
+
+    impl Serialize for TokenValue {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            match self {
+                TokenValue::Number(num) => {
+                    serializer.serialize_newtype_variant("TokenValue", 0, "Number", num)
+                }
+                TokenValue::Qualifier(qual) => {
+                    serializer.serialize_newtype_variant("TokenValue", 1, "Qualifier", qual)
+                }
+            }
+        }
+    }
+
+    impl Serialize for Token {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let mut state = serializer.serialize_struct("Token", 2)?;
+            state.serialize_field("prefix", &self.prefix)?;
+            state.serialize_field("value", &self.value)?;
+            state.end()
+        }
+    }
+
+    struct TestSnapshot<I, O>
+    where
+        I: Serialize,
+        O: Serialize,
+    {
+        input: I,
+        output: O,
+    }
+
+    impl<I, O> Serialize for TestSnapshot<I, O>
+    where
+        I: Serialize,
+        O: Serialize,
+    {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let mut state = serializer.serialize_struct("TestingPair", 2)?;
+            state.serialize_field("input", &self.input)?;
+            state.serialize_field("output", &self.output)?;
+            state.end()
+        }
+    }
+
+    fn snapshot<I, O>(input: I, output: O) -> TestSnapshot<I, O>
+    where
+        I: Serialize,
+        O: Serialize,
+    {
+        TestSnapshot { input, output }
+    }
+
+    #[test]
+    fn tokenization() {
+        let get_tokens = |input: &str| -> Vec<Token> {
+            let (_, output) = tokens(input).unwrap();
+            output
+        };
+
+        assert_yaml_snapshot!(get_tokens("1.2.3"));
+        assert_yaml_snapshot!(get_tokens("1.2.3-foo"));
+        assert_yaml_snapshot!(get_tokens("m1")); // -> milestone-1
+        assert_yaml_snapshot!(get_tokens("1m")); // -> 1-m
+        assert_yaml_snapshot!(get_tokens("0m0")); // -> 0-m-0
+        assert_yaml_snapshot!(get_tokens("1-1.foo-bar1baz-.1")); // Example from Pomfile docs
+    }
+
+    #[rstest]
+    #[case("1-1.foo-bar1baz-.1", "1-1.foo-bar-1-baz-0.1")]
+    #[case("1.0.0", "1")]
+    #[case("1.ga", "1")]
+    #[case("1.final", "1")]
+    #[case("1.0", "1")]
+    #[case("1.", "1")]
+    #[case("1-", "1")]
+    #[case("1.0.0-foo.0.0", "1-foo")]
+    #[case("1.0.0-0.0.0", "1")]
+    fn equivalent_tokenization(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(tokens(input), tokens(expected));
+    }
 
     #[rstest]
     #[case("1", "1")]
@@ -544,7 +467,7 @@ mod maven_test {
     #[case("1m3", "1Milestone3")]
     #[case("1m3", "1MileStone3")]
     #[case("1m3", "1MILESTONE3")]
-    fn version_equality(#[case] left: &str, #[case] right: &str) {
+    fn equality(#[case] left: &str, #[case] right: &str) {
         let left = Version::new(left).unwrap();
         let right = Version::new(right).unwrap();
         assert_eq!(left.partial_cmp(&right), Some(Ordering::Equal));
@@ -574,7 +497,7 @@ mod maven_test {
     #[case("2.0.1", "2.0.1-xyz")]
     #[case("2.0.1", "2.0.1-123")]
     #[case("2.0.1-xyz", "2.0.1-123")]
-    fn version_compare(#[case] left: &str, #[case] right: &str) {
+    fn comparison(#[case] left: &str, #[case] right: &str) {
         let left = Version::new(left).unwrap();
         let right = Version::new(right).unwrap();
         assert_eq!(left.partial_cmp(&right), Some(Ordering::Less));
