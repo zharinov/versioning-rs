@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::cmp::Ordering;
+
 use winnow::ascii::digit1;
 use winnow::combinator::{alt, repeat};
 use winnow::token::take_while;
@@ -10,15 +11,14 @@ use winnow::{IResult, Parser};
 enum RawToken<'a> {
     Num(u32),
     Qual(&'a str),
-    Dot,
-    Hyphen,
+    DotChar,
+    HyphenChar,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-enum Prefix {
+enum Separator {
     Dot,
     Hyphen,
-    ImplicitHyphen,
 }
 
 #[derive(Debug, PartialEq)]
@@ -29,7 +29,7 @@ enum TokenValue {
 
 #[derive(Debug, PartialEq)]
 struct Token {
-    prefix: Prefix,
+    prefix: Separator,
     value: TokenValue,
 }
 
@@ -52,11 +52,11 @@ fn qualifier(input: &str) -> IResult<&str, RawToken> {
 }
 
 fn dot_separator(input: &str) -> IResult<&str, RawToken> {
-    '.'.map(|_| RawToken::Dot).parse_next(input)
+    '.'.map(|_| RawToken::DotChar).parse_next(input)
 }
 
 fn hyphen_separator(input: &str) -> IResult<&str, RawToken> {
-    '-'.map(|_| RawToken::Hyphen).parse_next(input)
+    '-'.map(|_| RawToken::HyphenChar).parse_next(input)
 }
 
 fn raw_token(input: &str) -> IResult<&str, RawToken> {
@@ -67,73 +67,102 @@ fn raw_tokens(input: &str) -> IResult<&str, Vec<RawToken>> {
     repeat(1.., raw_token).parse_next(input)
 }
 
-fn calculate_token(
-    prev_raw_token: Option<RawToken>,
-    current_raw_token: Option<&RawToken>,
-) -> Option<Token> {
-    use RawToken::{Dot, Hyphen, Num, Qual};
+fn calculate_token(current: &RawToken, previous: Option<&RawToken>) -> Option<Token> {
+    use RawToken::{DotChar, HyphenChar, Num, Qual};
+    use Separator as Sep;
     use TokenValue::{Number, Qualifier};
 
-    #[rustfmt::skip]
-    let token = match (prev_raw_token, current_raw_token) {
-        // Leading hyphen is the specifics of this implementation
-        (None, Some(Num(val)))  => Some(Token { prefix: Prefix::Hyphen, value: Number(*val) }),
-        (None, Some(Qual(val))) => Some(Token { prefix: Prefix::Hyphen, value: Qualifier(val.to_string()) }),
-        
-        // Empty tokens are replaced with "0"
-        (None,         Some(Hyphen)) => Some(Token { prefix: Prefix::Hyphen, value: Number(0) }),
-        (None,         Some(Dot))    => Some(Token { prefix: Prefix::Dot,    value: Number(0) }),
-        (Some(Hyphen), Some(Hyphen)) => Some(Token { prefix: Prefix::Hyphen, value: Number(0) }),
-        (Some(Hyphen), Some(Dot))    => Some(Token { prefix: Prefix::Hyphen, value: Number(0) }),
-        (Some(Dot),    Some(Hyphen)) => Some(Token { prefix: Prefix::Dot,    value: Number(0) }),
-        (Some(Dot),    Some(Dot))    => Some(Token { prefix: Prefix::Dot,    value: Number(0) }),
-        (Some(Hyphen), None)         => Some(Token { prefix: Prefix::Hyphen, value: Number(0) }),
-        (Some(Dot),    None)         => Some(Token { prefix: Prefix::Dot,    value: Number(0) }),
-
-        // Normal transitions explicitly prefixed by '.' or '-'
-        (Some(Hyphen), Some(Num(val)))  => Some(Token { prefix: Prefix::Hyphen, value: Number(*val) }),
-        (Some(Hyphen), Some(Qual(val))) => Some(Token { prefix: Prefix::Hyphen, value: Qualifier(val.to_string()) }),
-        (Some(Dot),    Some(Num(val)))  => Some(Token { prefix: Prefix::Dot,    value: Number(*val) }),
-        (Some(Dot),    Some(Qual(val))) => Some(Token { prefix: Prefix::Dot,    value: Qualifier(val.to_string()) }),
-        
-        // A transition between digits and characters is equivalent to a hyphen
-        (Some(Qual(_)), Some(Num(val)))  => Some(Token { prefix: Prefix::ImplicitHyphen, value: Number(*val) }),
-        (Some(Num(_)),  Some(Qual(val))) => Some(Token { prefix: Prefix::ImplicitHyphen, value: Qualifier(val.to_string()) }),
-
-        // Transitions that don't produce new tokens
-        (Some(Num(_)),  Some(Num(_)))  => None,
-        (Some(Num(_)),  Some(Hyphen))  => None,
-        (Some(Num(_)),  Some(Dot))     => None,
-        (Some(Qual(_)), Some(Qual(_))) => None,
-        (Some(Qual(_)), Some(Hyphen))  => None,
-        (Some(Qual(_)), Some(Dot))     => None,
-        (Some(Num(_)),  None)          => None,
-        (Some(Qual(_)), None)          => None,
-        (None,          None)          => None,
+    let previous = if let Some(previous) = previous {
+        previous
+    } else {
+        let (prefix, value) = match current {
+            Num(val) => (Sep::Hyphen, Number(*val)),
+            Qual(val) => (Sep::Hyphen, Qualifier(val.to_lowercase())),
+            _ => (Sep::Hyphen, Number(0)),
+        };
+        return Some(Token { prefix, value });
     };
 
-    token
+    #[rustfmt::skip]
+    let (prefix, value) = match (previous, current) {
+        // Empty tokens are replaced with "0", e.g. '..1' is equivalent to '0.0.1'
+        (DotChar,    DotChar | HyphenChar) => (Sep::Dot,    Number(0)),
+        (HyphenChar, DotChar | HyphenChar) => (Sep::Hyphen, Number(0)),
+
+        // Normal transitions separated by '.' or '-'
+        (HyphenChar, Num(val))  => (Sep::Hyphen, Number(*val)),
+        (HyphenChar, Qual(val)) => (Sep::Hyphen, Qualifier(val.to_lowercase())),
+        (DotChar,    Num(val))  => (Sep::Dot,    Number(*val)),
+        (DotChar,    Qual(val)) => (Sep::Dot,    Qualifier(val.to_lowercase())),
+        
+        // Transition between digits and characters is equivalent to a hyphen
+        (Qual(_), Num(val))  => (Sep::Hyphen, Number(*val)),
+        (Num(_),  Qual(val)) => (Sep::Hyphen, Qualifier(val.to_lowercase())),
+
+        // Skip separator chars
+        (Num(_) | Qual(_), DotChar | HyphenChar) => return None,
+
+        // Parsing at the previous stage is incorrect
+        (Num(_), Num(_)) => unreachable!("Two consecutive numbers"),
+        (Qual(_), Qual(_)) => unreachable!("Two consecutive qualifiers"),
+    };
+
+    Some(Token { prefix, value })
+}
+
+fn is_null(token: &Token) -> bool {
+    match &token.value {
+        TokenValue::Number(0) => true,
+        TokenValue::Qualifier(x) => x.is_empty() || x == "final" || x == "ga" || x == "release",
+        _ => false,
+    }
+}
+
+fn trim_nulls(tokens: &mut Vec<Token>) {
+    while let Some(token) = tokens.last() {
+        if is_null(token) {
+            tokens.pop();
+        } else {
+            break;
+        }
+    }
 }
 
 fn tokens(input: &str) -> IResult<&str, Vec<Token>> {
     raw_tokens
         .map(|raw_tokens: Vec<RawToken>| {
-            let max_length = raw_tokens.len() + 1;
-            let mut tokens: Vec<Token> = Vec::with_capacity(max_length);
-
-            let mut prev_raw_token: Option<RawToken> = None;
-            for raw_token in raw_tokens {
-                let token = calculate_token(prev_raw_token, Some(&raw_token));
-                prev_raw_token = Some(raw_token);
+            let mut tokens: Vec<Token> = Vec::with_capacity(raw_tokens.len() + 1);
+            let mut prev: Option<&RawToken> = None;
+            for current in &raw_tokens {
+                let token = calculate_token(current, prev);
                 if let Some(token) = token {
+                    // The `alpha`, `beta` and `milestone` qualifiers can respectively be shortened
+                    // to "a", "b" and "m" when directly followed by a number.
+                    // This is a special case that is not handled by `calculate_token`.
+                    if let (Some(&RawToken::Qual(q)), TokenValue::Number(_)) = (prev, &token.value)
+                    {
+                        if let Some(s) = match q {
+                            "a" => Some("alpha".to_string()),
+                            "b" => Some("beta".to_string()),
+                            "m" => Some("milestone".to_string()),
+                            _ => None,
+                        } {
+                            if let Some(last) = tokens.last_mut() {
+                                last.value = TokenValue::Qualifier(s);
+                            }
+                        }
+                    }
+
+                    if token.prefix == Separator::Hyphen {
+                        trim_nulls(&mut tokens);
+                    }
+
                     tokens.push(token);
                 }
-            }
 
-            let token = calculate_token(prev_raw_token, None);
-            if let Some(token) = token {
-                tokens.push(token);
+                prev = Some(current);
             }
+            trim_nulls(&mut tokens);
 
             tokens
         })
@@ -151,10 +180,10 @@ const SERVICE_PACK_RANK: usize = 7;
 fn cmp_tokens(left: &Token, right: &Token) -> Ordering {
     fn token_rank(token: &Token) -> usize {
         match (&token.prefix, &token.value) {
-            (Prefix::Dot, TokenValue::Qualifier(_)) => 1,
-            (Prefix::Hyphen | Prefix::ImplicitHyphen, TokenValue::Qualifier(_)) => 2,
-            (Prefix::Hyphen | Prefix::ImplicitHyphen, TokenValue::Number(_)) => 3,
-            (Prefix::Dot, TokenValue::Number(_)) => 4,
+            (Separator::Dot, TokenValue::Qualifier(_)) => 1,
+            (Separator::Hyphen, TokenValue::Qualifier(_)) => 2,
+            (Separator::Hyphen, TokenValue::Number(_)) => 3,
+            (Separator::Dot, TokenValue::Number(_)) => 4,
         }
     }
 
@@ -165,32 +194,15 @@ fn cmp_tokens(left: &Token, right: &Token) -> Ordering {
     }
 
     fn qualifier_rank(token: &Token) -> Option<usize> {
-        match token.value {
-            TokenValue::Qualifier(ref value) => match value.as_str() {
+        match &token.value {
+            TokenValue::Qualifier(value) => match value.as_str() {
                 "alpha" => Some(ALPHA_RANK),
-                "a" if token.prefix == Prefix::ImplicitHyphen => Some(ALPHA_RANK),
-
                 "beta" => Some(BETA_RANK),
-                "b" if token.prefix == Prefix::ImplicitHyphen => Some(BETA_RANK),
-
                 "milestone" => Some(MILESTONE_RANK),
-                "m" if token.prefix == Prefix::ImplicitHyphen => Some(MILESTONE_RANK),
-
-                "rc" => Some(RELEASE_CANDIDATE_RANK),
-                "cr" => Some(RELEASE_CANDIDATE_RANK),
-                "preview" => Some(RELEASE_CANDIDATE_RANK),
-
+                "rc" | "cr" | "preview" => Some(RELEASE_CANDIDATE_RANK),
                 "snapshot" => Some(SNAPSHOT_RANK),
-
-                "" => Some(RELEASE_RANK),
-                "final" => Some(RELEASE_RANK),
-                "ga" => Some(RELEASE_RANK),
-                "release" => Some(RELEASE_RANK),
-                "latest" => Some(RELEASE_RANK),
-                "sr" => Some(RELEASE_RANK),
-
+                "" | "final" | "ga" | "release" | "latest" | "sr" => Some(RELEASE_RANK),
                 "sp" => Some(SERVICE_PACK_RANK),
-
                 _ => None,
             },
             _ => None,
@@ -268,8 +280,8 @@ impl PartialOrd for Version {
                         return Some(order);
                     }
                 }
-                (None, None) => unreachable!(),
-            }
+                _ => unreachable!(),
+            };
         }
 
         Some(Ordering::Equal)
@@ -281,7 +293,7 @@ mod maven_test {
     use super::*;
 
     #[test]
-    fn test_number() {
+    fn parse_number() {
         assert_eq!(number("123"), Ok(("", RawToken::Num(123))));
         assert_eq!(number("0"), Ok(("", RawToken::Num(0))));
         assert_eq!(number("1"), Ok(("", RawToken::Num(1))));
@@ -289,7 +301,7 @@ mod maven_test {
     }
 
     #[test]
-    fn test_qualifier() {
+    fn parse_qualifier() {
         assert_eq!(qualifier("foobar"), Ok(("", RawToken::Qual("foobar"))));
         assert_eq!(qualifier("foo_bar"), Ok(("", RawToken::Qual("foo_bar"))));
         assert_eq!(qualifier("foo+bar"), Ok(("", RawToken::Qual("foo+bar"))));
@@ -297,23 +309,23 @@ mod maven_test {
     }
 
     #[test]
-    fn test_tokens() {
+    fn tokenize() {
         assert_eq!(
             tokens("1.2.3"),
             Ok((
                 "",
                 vec![
                     Token {
-                        prefix: Prefix::Hyphen,
-                        value: TokenValue::Number(1)
+                        prefix: Separator::Hyphen,
+                        value: TokenValue::Number(1),
                     },
                     Token {
-                        prefix: Prefix::Dot,
-                        value: TokenValue::Number(2)
+                        prefix: Separator::Dot,
+                        value: TokenValue::Number(2),
                     },
                     Token {
-                        prefix: Prefix::Dot,
-                        value: TokenValue::Number(3)
+                        prefix: Separator::Dot,
+                        value: TokenValue::Number(3),
                     }
                 ]
             ))
@@ -325,24 +337,145 @@ mod maven_test {
                 "",
                 vec![
                     Token {
-                        prefix: Prefix::Hyphen,
-                        value: TokenValue::Number(1)
+                        prefix: Separator::Hyphen,
+                        value: TokenValue::Number(1),
                     },
                     Token {
-                        prefix: Prefix::Dot,
-                        value: TokenValue::Number(2)
+                        prefix: Separator::Dot,
+                        value: TokenValue::Number(2),
                     },
                     Token {
-                        prefix: Prefix::Dot,
-                        value: TokenValue::Number(3)
+                        prefix: Separator::Dot,
+                        value: TokenValue::Number(3),
                     },
                     Token {
-                        prefix: Prefix::Hyphen,
-                        value: TokenValue::Qualifier("foo".to_string())
+                        prefix: Separator::Hyphen,
+                        value: TokenValue::Qualifier("foo".to_string()),
                     }
                 ]
             ))
         );
+
+        assert_eq!(
+            tokens("1.2.3"),
+            Ok((
+                "",
+                vec![
+                    Token {
+                        prefix: Separator::Hyphen,
+                        value: TokenValue::Number(1),
+                    },
+                    Token {
+                        prefix: Separator::Dot,
+                        value: TokenValue::Number(2),
+                    },
+                    Token {
+                        prefix: Separator::Dot,
+                        value: TokenValue::Number(3),
+                    },
+                ]
+            ))
+        );
+
+        assert_eq!(
+            tokens("m1"),
+            Ok((
+                "",
+                vec![
+                    Token {
+                        prefix: Separator::Hyphen,
+                        value: TokenValue::Qualifier("milestone".to_string()),
+                    },
+                    Token {
+                        prefix: Separator::Hyphen,
+                        value: TokenValue::Number(1),
+                    },
+                ]
+            ))
+        );
+
+        assert_eq!(
+            tokens("1m"),
+            Ok((
+                "",
+                vec![
+                    Token {
+                        prefix: Separator::Hyphen,
+                        value: TokenValue::Number(1),
+                    },
+                    Token {
+                        prefix: Separator::Hyphen,
+                        value: TokenValue::Qualifier("m".to_string()),
+                    },
+                ]
+            ))
+        );
+
+        assert_eq!(
+            tokens("0m0"),
+            Ok((
+                "",
+                vec![Token {
+                    prefix: Separator::Hyphen,
+                    value: TokenValue::Qualifier("milestone".to_string()),
+                },]
+            ))
+        );
+
+        assert_eq!(
+            tokens("1-1.foo-bar1baz-.1"),
+            Ok((
+                "",
+                vec![
+                    Token {
+                        prefix: Separator::Hyphen,
+                        value: TokenValue::Number(1)
+                    },
+                    Token {
+                        prefix: Separator::Hyphen,
+                        value: TokenValue::Number(1)
+                    },
+                    Token {
+                        prefix: Separator::Dot,
+                        value: TokenValue::Qualifier("foo".to_string()),
+                    },
+                    Token {
+                        prefix: Separator::Hyphen,
+                        value: TokenValue::Qualifier("bar".to_string()),
+                    },
+                    Token {
+                        prefix: Separator::Hyphen,
+                        value: TokenValue::Number(1),
+                    },
+                    Token {
+                        prefix: Separator::Hyphen,
+                        value: TokenValue::Qualifier("baz".to_string()),
+                    },
+                    Token {
+                        prefix: Separator::Hyphen,
+                        value: TokenValue::Number(0),
+                    },
+                    Token {
+                        prefix: Separator::Dot,
+                        value: TokenValue::Number(1),
+                    },
+                ]
+            ))
+        );
+
+        assert_eq!(
+            tokens("1-1.foo-bar1baz-.1"),
+            tokens("1-1.foo-bar-1-baz-0.1"),
+        );
+
+        assert_eq!(tokens("1.0.0"), tokens("1"),);
+        assert_eq!(tokens("1.ga"), tokens("1"),);
+        assert_eq!(tokens("1.final"), tokens("1"),);
+        assert_eq!(tokens("1.0"), tokens("1"),);
+        assert_eq!(tokens("1."), tokens("1"),);
+        assert_eq!(tokens("1-"), tokens("1"),);
+        assert_eq!(tokens("1.0.0-foo.0.0"), tokens("1-foo"),);
+        assert_eq!(tokens("1.0.0-0.0.0"), tokens("1"),);
     }
 
     #[test]
@@ -360,5 +493,91 @@ mod maven_test {
         let right = Version::new("1.2.3-foo").unwrap();
         assert!(left < right);
         assert!(right > left);
+    }
+
+    use rstest::rstest;
+
+    #[rstest]
+    #[case("1", "1")]
+    #[case("1", "1.0")]
+    #[case("1", "1.0.0")]
+    #[case("1.0", "1.0.0")]
+    #[case("1", "1-0")]
+    #[case("1", "1.0-0")]
+    #[case("1.0", "1.0-0")]
+    // no separator between number and character
+    #[case("1a", "1-a")]
+    #[case("1a", "1-a")]
+    #[case("1a", "1.0-a")]
+    #[case("1a", "1.0.0-a")]
+    #[case("1.0a", "1-a")]
+    #[case("1.0.0a", "1-a")]
+    #[case("1x", "1-x")]
+    #[case("1x", "1.0-x")]
+    #[case("1x", "1.0.0-x")]
+    #[case("1.0x", "1-x")]
+    #[case("1.0.0x", "1-x")]
+    // aliases
+    #[case("1ga", "1")]
+    #[case("1release", "1")]
+    #[case("1final", "1")]
+    #[case("1cr", "1rc")]
+    // special "aliases" a, b and m for alpha, beta and milestone
+    #[case("1a1", "1-alpha-1")]
+    #[case("1b2", "1-beta-2")]
+    #[case("1m3", "1-milestone-3")]
+    // case insensitive
+    #[case("1X", "1x")]
+    #[case("1A", "1a")]
+    #[case("1B", "1b")]
+    #[case("1M", "1m")]
+    #[case("1Ga", "1")]
+    #[case("1GA", "1")]
+    #[case("1RELEASE", "1")]
+    #[case("1release", "1")]
+    #[case("1RELeaSE", "1")]
+    #[case("1Final", "1")]
+    #[case("1FinaL", "1")]
+    #[case("1FINAL", "1")]
+    #[case("1Cr", "1Rc")]
+    #[case("1cR", "1rC")]
+    #[case("1m3", "1Milestone3")]
+    #[case("1m3", "1MileStone3")]
+    #[case("1m3", "1MILESTONE3")]
+    fn version_equality(#[case] left: &str, #[case] right: &str) {
+        let left = Version::new(left).unwrap();
+        let right = Version::new(right).unwrap();
+        assert_eq!(left.partial_cmp(&right), Some(Ordering::Equal));
+        assert_eq!(right.partial_cmp(&left), Some(Ordering::Equal));
+    }
+
+    #[rstest]
+    #[case("1", "2")]
+    #[case("1.5", "2")]
+    #[case("1", "2.5")]
+    #[case("1.0", "1.1")]
+    #[case("1.1", "1.2")]
+    #[case("1.0.0", "1.1")]
+    #[case("1.0.1", "1.1")]
+    #[case("1.1", "1.2.0")]
+    #[case("1.0-alpha-1", "1.0")]
+    #[case("1.0-alpha-1", "1.0-alpha-2")]
+    #[case("1.0-alpha-1", "1.0-beta-1")]
+    #[case("1.0-beta-1", "1.0-SNAPSHOT")]
+    #[case("1.0-SNAPSHOT", "1.0")]
+    #[case("1.0-alpha-1-SNAPSHOT", "1.0-alpha-1")]
+    #[case("1.0", "1.0-1")]
+    #[case("1.0-1", "1.0-2")]
+    #[case("1.0.0", "1.0-1")]
+    #[case("2.0-1", "2.0.1")]
+    #[case("2.0.1-klm", "2.0.1-lmn")]
+    #[case("2.0.1", "2.0.1-xyz")]
+    #[case("2.0.1", "2.0.1-123")]
+    #[case("2.0.1-xyz", "2.0.1-123")]
+    fn version_compare(#[case] left: &str, #[case] right: &str) {
+        let left = Version::new(left).unwrap();
+        let right = Version::new(right).unwrap();
+        assert_eq!(left.partial_cmp(&right), Some(Ordering::Less));
+        assert_eq!(right.partial_cmp(&left), Some(Ordering::Greater));
     }
 }
