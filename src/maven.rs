@@ -113,7 +113,7 @@ fn calculate_token(current: &RawToken, previous: Option<&RawToken>) -> Option<To
 fn is_null(token: &Token) -> bool {
     match &token.value {
         TokenValue::Number(0) => true,
-        TokenValue::Qualifier(x) => x == "" || x == "final" || x == "ga" || x == "release",
+        TokenValue::Qualifier(x) => x.is_empty() || x == "final" || x == "ga" || x == "release",
         _ => false,
     }
 }
@@ -134,7 +134,7 @@ fn tokens(input: &str) -> IResult<&str, Vec<Token>> {
             let mut tokens: Vec<Token> = Vec::with_capacity(raw_tokens.len() + 1);
             let mut prev: Option<&RawToken> = None;
             for current in &raw_tokens {
-                let token = calculate_token(&current, prev);
+                let token = calculate_token(current, prev);
                 if let Some(token) = token {
                     // The `alpha`, `beta` and `milestone` qualifiers can respectively be shortened
                     // to "a", "b" and "m" when directly followed by a number.
