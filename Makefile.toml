@@ -7,6 +7,11 @@ install_crate = "rustfmt"
 command = "cargo"
 args = ["fmt", "--", "--emit=files"]
 
+[tasks.lint]
+install_crate = "clippy"
+command = "cargo"
+args = ["clippy", "--all-targets", "--all-features", "--", "-D", "warnings"]
+
 [tasks.cov]
 command = "cargo"
 args = ["llvm-cov", "nextest", "--open", "--output-dir", ".coverage"]

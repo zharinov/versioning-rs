@@ -1,5 +1,5 @@
 ---
-source: src/maven.rs
+source: src/maven/version_tests.rs
 expression: "get_tokens(\"m1\")"
 ---
 - prefix: Hyphen
