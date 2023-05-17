@@ -9,7 +9,7 @@ use winnow::{IResult, Parser};
 
 #[derive(Debug, PartialEq)]
 enum RawToken<'a> {
-    Num(u32),
+    Num(u64),
     Qual(&'a str),
     DotChar,
     HyphenChar,
@@ -24,7 +24,7 @@ enum Separator {
 #[derive(Debug, PartialEq)]
 enum TokenValue {
     Qualifier(String),
-    Number(u32),
+    Number(u64),
 }
 
 #[derive(Debug, PartialEq)]
@@ -36,7 +36,7 @@ struct Token {
 fn number(input: &str) -> IResult<&str, RawToken> {
     digit1
         .try_map(|s| -> Result<RawToken, std::num::ParseIntError> {
-            let num = str::parse::<u32>(s)?;
+            let num = str::parse::<u64>(s)?;
             Ok(RawToken::Num(num))
         })
         .parse_next(input)
@@ -153,7 +153,9 @@ fn tokens(input: &str) -> IResult<&str, Vec<Token>> {
                         }
                     }
 
-                    if token.prefix == Separator::Hyphen {
+                    if token.prefix == Separator::Hyphen
+                        || matches!(token.value, TokenValue::Qualifier(_))
+                    {
                         trim_nulls(&mut tokens);
                     }
 
@@ -180,10 +182,9 @@ const SERVICE_PACK_RANK: usize = 7;
 fn cmp_tokens(left: &Token, right: &Token) -> Ordering {
     fn token_rank(token: &Token) -> usize {
         match (&token.prefix, &token.value) {
-            (Separator::Dot, TokenValue::Qualifier(_)) => 1,
-            (Separator::Hyphen, TokenValue::Qualifier(_)) => 2,
-            (Separator::Hyphen, TokenValue::Number(_)) => 3,
-            (Separator::Dot, TokenValue::Number(_)) => 4,
+            (_, TokenValue::Qualifier(_)) => 1,
+            (Separator::Hyphen, TokenValue::Number(_)) => 2,
+            (Separator::Dot, TokenValue::Number(_)) => 3,
         }
     }
 
@@ -193,7 +194,7 @@ fn cmp_tokens(left: &Token, right: &Token) -> Ordering {
         return left_rank.cmp(&right_rank);
     }
 
-    fn qualifier_rank(token: &Token) -> Option<usize> {
+    fn special_qualifier_rank(token: &Token) -> Option<usize> {
         match &token.value {
             TokenValue::Qualifier(value) => match value.as_str() {
                 "alpha" => Some(ALPHA_RANK),
@@ -209,8 +210,8 @@ fn cmp_tokens(left: &Token, right: &Token) -> Ordering {
         }
     }
 
-    let left_rank = qualifier_rank(left);
-    let right_rank = qualifier_rank(right);
+    let left_rank = special_qualifier_rank(left);
+    let right_rank = special_qualifier_rank(right);
     match (left_rank, right_rank) {
         (Some(left_rank), Some(right_rank)) => left_rank.cmp(&right_rank),
         (Some(left_rank), _) if left_rank < RELEASE_RANK => Ordering::Less,
@@ -235,53 +236,40 @@ impl Version {
     }
 }
 
+fn get_null_token(counterpart: &Token) -> Token {
+    let prefix = counterpart.prefix;
+    match counterpart.value {
+        TokenValue::Number(_) => Token {
+            prefix,
+            value: TokenValue::Number(0),
+        },
+        TokenValue::Qualifier(_) => Token {
+            prefix,
+            value: TokenValue::Qualifier("".to_string()),
+        },
+    }
+}
+
 impl PartialOrd for Version {
     fn partial_cmp(&self, other: &Version) -> Option<Ordering> {
-        fn null_token(counterpart: &Token) -> Token {
-            let prefix = counterpart.prefix;
-            match counterpart.value {
-                TokenValue::Number(_) => Token {
-                    prefix,
-                    value: TokenValue::Number(0),
-                },
-                TokenValue::Qualifier(_) => Token {
-                    prefix,
-                    value: TokenValue::Qualifier("".to_string()),
-                },
-            }
-        }
-
         let left_len = self.tokens.len();
         let right_len = other.tokens.len();
         let max_len = left_len.max(right_len);
 
         for i in 0..max_len {
-            let left_token = self.tokens.get(i);
-            let right_token = other.tokens.get(i);
+            let left = self.tokens.get(i);
+            let right = other.tokens.get(i);
 
-            match (left_token, right_token) {
-                (Some(left_token), Some(right_token)) => {
-                    let order = cmp_tokens(left_token, right_token);
-                    if order != Ordering::Equal {
-                        return Some(order);
-                    }
-                }
-                (Some(left_token), None) => {
-                    let right_token = null_token(left_token);
-                    let order = cmp_tokens(left_token, &right_token);
-                    if order != Ordering::Equal {
-                        return Some(order);
-                    }
-                }
-                (None, Some(right_token)) => {
-                    let left_token = null_token(right_token);
-                    let order = cmp_tokens(&left_token, right_token);
-                    if order != Ordering::Equal {
-                        return Some(order);
-                    }
-                }
+            let ordering = match (left, right) {
+                (Some(left), Some(right)) => cmp_tokens(left, right),
+                (Some(left), None) => cmp_tokens(left, &get_null_token(left)),
+                (None, Some(right)) => cmp_tokens(&get_null_token(right), right),
                 _ => unreachable!(),
             };
+
+            if ordering != Ordering::Equal {
+                return Some(ordering);
+            }
         }
 
         Some(Ordering::Equal)
