@@ -39,22 +39,25 @@ jobs:
           cargo clippy --version
 
       - name: Using cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.3.0
+        with:
+          cache-all-crates: "true"
+          cache-on-failure: "true"
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
 
       - name: Check package
-        run: cargo check --verbose
+        run: cargo check
 
       - name: Check formatting
-        run: cargo fmt -- --check --verbose
+        run: cargo fmt -- --check
 
       - name: Lint
         run: cargo clippy -- -D warnings -A dead_code
 
       - name: Test
-        run: cargo test --verbose
+        run: cargo test
 
       - name: Build
-        run: cargo build --release --verbose
+        run: cargo build --release
