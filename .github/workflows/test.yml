@@ -38,11 +38,14 @@ jobs:
           rustc --version
           cargo clippy --version
 
+      - name: Using cache
+        uses: Swatinem/rust-cache@v2
+
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
 
       - name: Check package
-        run: cargo check --verbose --package verver
+        run: cargo check --verbose
 
       - name: Check formatting
         run: cargo fmt -- --check --verbose
