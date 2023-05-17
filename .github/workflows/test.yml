@@ -40,6 +40,8 @@ jobs:
 
       - name: Using cache
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
