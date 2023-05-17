@@ -42,7 +42,7 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Check package
-        run: cargo check --verbose
+        run: cargo check --verbose --package verver
 
       - name: Check formatting
         run: cargo fmt -- --check --verbose
