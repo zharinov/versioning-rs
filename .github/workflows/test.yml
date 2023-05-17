@@ -39,9 +39,10 @@ jobs:
           cargo clippy --version
 
       - name: Using cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.3.0
         with:
-          cache-all-crates: true
+          cache-all-crates: "true"
+          cache-on-failure: "true"
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
