@@ -105,7 +105,7 @@ where
 #[test]
 fn tokenization() {
     let get_tokens = |input: &str| -> Vec<Token> {
-        let (_, output) = tokens(input).unwrap();
+        let (_, output) = version_tokens(input).unwrap();
         output
     };
 
@@ -128,7 +128,32 @@ fn tokenization() {
 #[case("1.0.0-foo.0.0", "1-foo")]
 #[case("1.0.0-0.0.0", "1")]
 fn equivalent_tokenization(#[case] input: &str, #[case] expected: &str) {
-    assert_eq!(tokens(input), tokens(expected));
+    assert_eq!(version_tokens(input), version_tokens(expected));
+}
+
+#[test]
+fn version_constructor() {
+    assert_eq!(
+        Version::new("1.2.3").unwrap(),
+        Version {
+            tokens: vec![
+                Token {
+                    prefix: Separator::Hyphen,
+                    value: TokenValue::Number(1)
+                },
+                Token {
+                    prefix: Separator::Dot,
+                    value: TokenValue::Number(2)
+                },
+                Token {
+                    prefix: Separator::Dot,
+                    value: TokenValue::Number(3)
+                }
+            ]
+        }
+    );
+
+    assert!(Version::new("1.2.3=#!").is_none());
 }
 
 #[rstest]
