@@ -3,7 +3,7 @@
 use std::cmp::Ordering;
 
 use winnow::ascii::digit1;
-use winnow::combinator::{alt, repeat};
+use winnow::combinator::{alt, eof, repeat};
 use winnow::token::take_while;
 use winnow::{IResult, Parser};
 
@@ -67,7 +67,25 @@ fn raw_tokens(input: &str) -> IResult<&str, Vec<RawToken>> {
     repeat(1.., raw_token).parse_next(input)
 }
 
-fn calculate_token(current: &RawToken, previous: Option<&RawToken>) -> Option<Token> {
+fn is_null(token: &Token) -> bool {
+    match &token.value {
+        TokenValue::Number(0) => true,
+        TokenValue::Qualifier(x) => x.is_empty() || x == "final" || x == "ga" || x == "release",
+        _ => false,
+    }
+}
+
+fn trim_nulls(tokens: &mut Vec<Token>) {
+    while let Some(token) = tokens.last() {
+        if is_null(token) {
+            tokens.pop();
+        } else {
+            break;
+        }
+    }
+}
+
+fn calc_token(current: &RawToken, previous: Option<&RawToken>) -> Option<Token> {
     use RawToken::{DotChar, HyphenChar, Num, Qual};
     use Separator as Sep;
     use TokenValue::{Number, Qualifier};
@@ -110,65 +128,46 @@ fn calculate_token(current: &RawToken, previous: Option<&RawToken>) -> Option<To
     Some(Token { prefix, value })
 }
 
-fn is_null(token: &Token) -> bool {
-    match &token.value {
-        TokenValue::Number(0) => true,
-        TokenValue::Qualifier(x) => x.is_empty() || x == "final" || x == "ga" || x == "release",
-        _ => false,
-    }
-}
-
-fn trim_nulls(tokens: &mut Vec<Token>) {
-    while let Some(token) = tokens.last() {
-        if is_null(token) {
-            tokens.pop();
-        } else {
-            break;
-        }
-    }
-}
-
-fn tokens(input: &str) -> IResult<&str, Vec<Token>> {
-    raw_tokens
-        .map(|raw_tokens: Vec<RawToken>| {
-            let mut tokens: Vec<Token> = Vec::with_capacity(raw_tokens.len() + 1);
-            let mut prev: Option<&RawToken> = None;
-            for current in &raw_tokens {
-                let token = calculate_token(current, prev);
-                if let Some(token) = token {
-                    // The `alpha`, `beta` and `milestone` qualifiers can respectively be shortened
-                    // to "a", "b" and "m" when directly followed by a number.
-                    // This is a special case that is not handled by `calculate_token`.
-                    if let (Some(&RawToken::Qual(q)), TokenValue::Number(_)) = (prev, &token.value)
-                    {
-                        if let Some(s) = match q {
-                            "a" => Some("alpha".to_string()),
-                            "b" => Some("beta".to_string()),
-                            "m" => Some("milestone".to_string()),
-                            _ => None,
-                        } {
-                            if let Some(last) = tokens.last_mut() {
-                                last.value = TokenValue::Qualifier(s);
-                            }
-                        }
+fn parse_raw_tokens(raw_tokens: Vec<RawToken>) -> Vec<Token> {
+    let mut tokens: Vec<Token> = Vec::with_capacity(raw_tokens.len() + 1);
+    let mut prev: Option<&RawToken> = None;
+    for current in &raw_tokens {
+        let token = calc_token(current, prev);
+        if let Some(token) = token {
+            // The `alpha`, `beta` and `milestone` qualifiers can respectively be shortened
+            // to "a", "b" and "m" when directly followed by a number.
+            // This is a special case that is not handled by `calc_token`.
+            if let (Some(&RawToken::Qual(q)), TokenValue::Number(_)) = (prev, &token.value) {
+                if let Some(s) = match q {
+                    "a" => Some("alpha".to_string()),
+                    "b" => Some("beta".to_string()),
+                    "m" => Some("milestone".to_string()),
+                    _ => None,
+                } {
+                    if let Some(last) = tokens.last_mut() {
+                        last.value = TokenValue::Qualifier(s);
                     }
-
-                    if token.prefix == Separator::Hyphen
-                        || matches!(token.value, TokenValue::Qualifier(_))
-                    {
-                        trim_nulls(&mut tokens);
-                    }
-
-                    tokens.push(token);
                 }
-
-                prev = Some(current);
             }
-            trim_nulls(&mut tokens);
 
-            tokens
-        })
-        .parse_next(input)
+            // 1.0-2.0.0-3.0.0.0 -> 1-2-3
+            if token.prefix == Separator::Hyphen || matches!(token.value, TokenValue::Qualifier(_))
+            {
+                trim_nulls(&mut tokens);
+            }
+
+            tokens.push(token);
+        }
+
+        prev = Some(current);
+    }
+    trim_nulls(&mut tokens);
+
+    tokens
+}
+
+fn version_tokens(input: &str) -> IResult<&str, Vec<Token>> {
+    raw_tokens.map(parse_raw_tokens).parse_next(input)
 }
 
 const ALPHA_RANK: usize = 1;
@@ -230,9 +229,14 @@ struct Version {
 }
 
 impl Version {
-    fn new(input: &str) -> Result<Version, String> {
-        let (_, tokens) = tokens(input).map_err(|err| format!("{}", err))?;
-        Ok(Version { tokens })
+    fn new(input: &str) -> Option<Version> {
+        match (version_tokens, eof)
+            .map(|(tokens, _)| tokens)
+            .parse_next(input)
+        {
+            Ok((_, tokens)) => Some(Version { tokens }),
+            _ => None,
+        }
     }
 }
 
