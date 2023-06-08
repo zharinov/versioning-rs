@@ -9,7 +9,7 @@ winnow = "0.4.6"
 [dev-dependencies]
 rstest = "0.17.0"
 insta = { version = "1.29.0", features = ["yaml"] }
-serde = "1.0.163"
+serde = "1.0.164"
 itertools = "0.10.5"
 
 [profile.dev.package.insta]
