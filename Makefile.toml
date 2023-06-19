@@ -14,7 +14,15 @@ args = ["clippy", "--all-targets", "--all-features", "--", "-D", "warnings"]
 
 [tasks.cov]
 command = "cargo"
-args = ["llvm-cov", "nextest", "--open", "--output-dir", ".coverage"]
+args = [
+  "llvm-cov",
+  "nextest",
+  "--open",
+  "--output-dir",
+  ".coverage",
+  "--ignore-filename-regex",
+  "_tests\\.rs",
+]
 
 [tasks.test]
 command = "cargo"
