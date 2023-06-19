@@ -115,7 +115,7 @@ where
 #[test]
 fn tokenization() {
     let get_tokens = |input: &str| -> Vec<Token> {
-        let (_, output) = version_tokens(input).unwrap();
+        let (_, output) = version(input).unwrap();
         output.tokens
     };
 
@@ -138,7 +138,7 @@ fn tokenization() {
 #[case("1.0.0-foo.0.0", "1-foo")]
 #[case("1.0.0-0.0.0", "1")]
 fn equivalent_tokenization(#[case] input: &str, #[case] expected: &str) {
-    assert_eq!(version_tokens(input), version_tokens(expected));
+    assert_eq!(version(input), version(expected));
 }
 
 #[test]

@@ -21,13 +21,13 @@ enum Separator {
     Hyphen,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum TokenValue {
     Qualifier(String),
     Number(u64),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Token {
     prefix: Separator,
     value: TokenValue,
@@ -166,7 +166,7 @@ fn parse_raw_tokens(raw_tokens: Vec<RawToken>) -> Vec<Token> {
     tokens
 }
 
-fn version_tokens(input: &str) -> IResult<&str, Version> {
+pub fn version(input: &str) -> IResult<&str, Version> {
     raw_tokens
         .map(parse_raw_tokens)
         .map(Version::from_tokens)
@@ -181,6 +181,7 @@ const SNAPSHOT_RANK: usize = 5;
 const RELEASE_RANK: usize = 6;
 const SERVICE_PACK_RANK: usize = 7;
 
+#[inline]
 fn cmp_tokens(left: &Token, right: &Token) -> Ordering {
     fn token_rank(token: &Token) -> usize {
         match (&token.prefix, &token.value) {
@@ -226,27 +227,7 @@ fn cmp_tokens(left: &Token, right: &Token) -> Ordering {
     }
 }
 
-#[derive(Debug)]
-struct Version {
-    tokens: Vec<Token>,
-}
-
-impl Version {
-    fn from_tokens(tokens: Vec<Token>) -> Version {
-        Version { tokens }
-    }
-
-    fn parse(input: &str) -> Option<Version> {
-        match (version_tokens, eof)
-            .map(|(version, _)| version)
-            .parse_next(input)
-        {
-            Ok((_, version)) => Some(version),
-            _ => None,
-        }
-    }
-}
-
+#[inline]
 fn get_null_token(counterpart: &Token) -> Token {
     let prefix = counterpart.prefix;
     match counterpart.value {
@@ -262,7 +243,7 @@ fn get_null_token(counterpart: &Token) -> Token {
 }
 
 #[inline]
-fn cmp(x: &Version, y: &Version) -> Ordering {
+fn cmp_versions(x: &Version, y: &Version) -> Ordering {
     let left_len = x.tokens.len();
     let right_len = y.tokens.len();
     let max_len = left_len.max(right_len);
@@ -286,9 +267,27 @@ fn cmp(x: &Version, y: &Version) -> Ordering {
     Ordering::Equal
 }
 
+#[derive(Debug, Clone)]
+pub struct Version {
+    tokens: Vec<Token>,
+}
+
+impl Version {
+    fn from_tokens(tokens: Vec<Token>) -> Version {
+        Version { tokens }
+    }
+
+    fn parse(input: &str) -> Option<Version> {
+        match (version, eof).map(|(version, _)| version).parse_next(input) {
+            Ok((_, version)) => Some(version),
+            _ => None,
+        }
+    }
+}
+
 impl PartialEq for Version {
     fn eq(&self, other: &Version) -> bool {
-        cmp(self, other) == Ordering::Equal
+        cmp_versions(self, other) == Ordering::Equal
     }
 }
 
@@ -296,13 +295,13 @@ impl Eq for Version {}
 
 impl PartialOrd for Version {
     fn partial_cmp(&self, other: &Version) -> Option<Ordering> {
-        Some(cmp(self, other))
+        Some(cmp_versions(self, other))
     }
 }
 
 impl Ord for Version {
     fn cmp(&self, other: &Version) -> Ordering {
-        cmp(self, other)
+        cmp_versions(self, other)
     }
 }
 

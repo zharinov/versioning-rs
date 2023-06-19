@@ -1,15 +1,15 @@
 #![allow(dead_code)]
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Direction {
     Left,
     Right,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Edge {
-    Hole,
-    Point,
+    Open,
+    Closed,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -17,18 +17,18 @@ pub struct Interval<V>
 where
     V: Ord,
 {
-    position: V,
-    direction: Direction,
+    version: V,
     edge: Edge,
+    direction: Direction,
 }
 
 impl<V> Interval<V>
 where
     V: Ord,
 {
-    pub fn new(position: V, direction: Direction, edge: Edge) -> Self {
+    pub fn new(position: V, edge: Edge, direction: Direction) -> Self {
         Self {
-            position,
+            version: position,
             direction,
             edge,
         }
@@ -44,14 +44,14 @@ where
 
         let direction = &x.direction;
 
-        if x.position < y.position {
+        if x.version < y.version {
             return match direction {
                 Right => Some(x),
                 Left => Some(y),
             };
         }
 
-        if y.position < x.position {
+        if y.version < x.version {
             return match direction {
                 Right => Some(y),
                 Left => Some(x),
@@ -59,8 +59,8 @@ where
         }
 
         let edge_rank = |edge: &Edge| match edge {
-            Hole => 0,
-            Point => 1,
+            Open => 0,
+            Closed => 1,
         };
 
         if edge_rank(&x.edge) >= edge_rank(&y.edge) {
@@ -77,8 +77,8 @@ mod tests {
 
     #[test]
     fn dedupe_union() {
-        let x = Interval::new(0, Direction::Right, Edge::Hole);
-        let y = Interval::new(0, Direction::Right, Edge::Point);
+        let x = Interval::new(0, Edge::Open, Direction::Right);
+        let y = Interval::new(0, Edge::Closed, Direction::Right);
 
         let res = Interval::dedupe_union(&x, &y);
 
@@ -87,8 +87,8 @@ mod tests {
 
     #[test]
     fn dedupe_union2() {
-        let x = Interval::new(0, Direction::Left, Edge::Point);
-        let y = Interval::new(0, Direction::Left, Edge::Hole);
+        let x = Interval::new(0, Edge::Closed, Direction::Left);
+        let y = Interval::new(0, Edge::Open, Direction::Left);
 
         let res = Interval::dedupe_union(&x, &y);
 
