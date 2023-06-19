@@ -166,8 +166,11 @@ fn parse_raw_tokens(raw_tokens: Vec<RawToken>) -> Vec<Token> {
     tokens
 }
 
-fn version_tokens(input: &str) -> IResult<&str, Vec<Token>> {
-    raw_tokens.map(parse_raw_tokens).parse_next(input)
+fn version_tokens(input: &str) -> IResult<&str, Version> {
+    raw_tokens
+        .map(parse_raw_tokens)
+        .map(Version::from_tokens)
+        .parse_next(input)
 }
 
 const ALPHA_RANK: usize = 1;
@@ -229,12 +232,16 @@ struct Version {
 }
 
 impl Version {
-    fn new(input: &str) -> Option<Version> {
+    fn from_tokens(tokens: Vec<Token>) -> Version {
+        Version { tokens }
+    }
+
+    fn parse(input: &str) -> Option<Version> {
         match (version_tokens, eof)
-            .map(|(tokens, _)| tokens)
+            .map(|(version, _)| version)
             .parse_next(input)
         {
-            Ok((_, tokens)) => Some(Version { tokens }),
+            Ok((_, version)) => Some(version),
             _ => None,
         }
     }

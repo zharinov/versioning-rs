@@ -106,7 +106,7 @@ where
 fn tokenization() {
     let get_tokens = |input: &str| -> Vec<Token> {
         let (_, output) = version_tokens(input).unwrap();
-        output
+        output.tokens
     };
 
     assert_yaml_snapshot!(get_tokens("1.2.3"));
@@ -134,7 +134,7 @@ fn equivalent_tokenization(#[case] input: &str, #[case] expected: &str) {
 #[test]
 fn version_constructor() {
     assert_eq!(
-        Version::new("1.2.3").unwrap(),
+        Version::parse("1.2.3").unwrap(),
         Version {
             tokens: vec![
                 Token {
@@ -153,7 +153,7 @@ fn version_constructor() {
         }
     );
 
-    assert!(Version::new("1.2.3=#!").is_none());
+    assert!(Version::parse("1.2.3=#!").is_none());
 }
 
 #[rstest]
@@ -207,8 +207,8 @@ fn version_constructor() {
 #[case("1.0.0.x", "1-x")]
 #[case("1.x", "1.0.0-x")]
 fn equality(#[case] left: &str, #[case] right: &str) {
-    let left = Version::new(left).unwrap();
-    let right = Version::new(right).unwrap();
+    let left = Version::parse(left).unwrap();
+    let right = Version::parse(right).unwrap();
     assert_eq!(left.partial_cmp(&right), Some(Ordering::Equal));
     assert_eq!(right.partial_cmp(&left), Some(Ordering::Equal));
 }
@@ -237,8 +237,8 @@ fn equality(#[case] left: &str, #[case] right: &str) {
 #[case("2.0.1", "2.0.1-123")]
 #[case("2.0.1-xyz", "2.0.1-123")]
 fn comparison(#[case] left: &str, #[case] right: &str) {
-    let left = Version::new(left).unwrap();
-    let right = Version::new(right).unwrap();
+    let left = Version::parse(left).unwrap();
+    let right = Version::parse(right).unwrap();
     assert_eq!(left.partial_cmp(&right), Some(Ordering::Less));
     assert_eq!(right.partial_cmp(&left), Some(Ordering::Greater));
 }
@@ -246,9 +246,9 @@ fn comparison(#[case] left: &str, #[case] right: &str) {
 /// @see https://issues.apache.org/jira/browse/MNG-5568
 #[test]
 fn mng_5568() {
-    let a = Version::new("6.1.0").unwrap();
-    let b = Version::new("6.1.0rc3").unwrap();
-    let c = Version::new("6.1H.5-beta").unwrap(); // this is the unusual version string, with 'H' in the middle
+    let a = Version::parse("6.1.0").unwrap();
+    let b = Version::parse("6.1.0rc3").unwrap();
+    let c = Version::parse("6.1H.5-beta").unwrap(); // this is the unusual version string, with 'H' in the middle
 
     assert_eq!(b.partial_cmp(&a), Some(Ordering::Less)); // classical
     assert_eq!(b.partial_cmp(&c), Some(Ordering::Less)); // now b < c, but before MNG-5568, we had b > c
@@ -258,10 +258,10 @@ fn mng_5568() {
 /// @see https://jira.apache.org/jira/browse/MNG-6572
 #[test]
 fn mng_6572() {
-    let a = Version::new("20190126.230843").unwrap(); // resembles a SNAPSHOT
-    let b = Version::new("1234567890.12345").unwrap(); // 10 digit number
-    let c = Version::new("123456789012345.1H.5-beta").unwrap(); // 15 digit number
-    let d = Version::new("12345678901234567890.1H.5-beta").unwrap(); // 20 digit number
+    let a = Version::parse("20190126.230843").unwrap(); // resembles a SNAPSHOT
+    let b = Version::parse("1234567890.12345").unwrap(); // 10 digit number
+    let c = Version::parse("123456789012345.1H.5-beta").unwrap(); // 15 digit number
+    let d = Version::parse("12345678901234567890.1H.5-beta").unwrap(); // 20 digit number
 
     assert_eq!(a.partial_cmp(&b), Some(Ordering::Less));
     assert_eq!(b.partial_cmp(&c), Some(Ordering::Less));
@@ -297,8 +297,8 @@ fn version_equal_with_leading_zeroes() {
 
     for combination in versions.into_iter().combinations(2) {
         let (left, right) = (combination[0], combination[1]);
-        let left = Version::new(left).unwrap();
-        let right = Version::new(right).unwrap();
+        let left = Version::parse(left).unwrap();
+        let right = Version::parse(right).unwrap();
         assert_eq!(left.partial_cmp(&right), Some(Ordering::Equal));
         assert_eq!(right.partial_cmp(&left), Some(Ordering::Equal));
     }
@@ -330,8 +330,8 @@ fn test_version_zero_equal_with_leading_zeroes() {
 
     for combination in versions.into_iter().combinations(2) {
         let (left, right) = (combination[0], combination[1]);
-        let left = Version::new(left).unwrap();
-        let right = Version::new(right).unwrap();
+        let left = Version::parse(left).unwrap();
+        let right = Version::parse(right).unwrap();
         assert_eq!(left.partial_cmp(&right), Some(Ordering::Equal));
         assert_eq!(right.partial_cmp(&left), Some(Ordering::Equal));
     }
@@ -340,9 +340,9 @@ fn test_version_zero_equal_with_leading_zeroes() {
 /// @see https://issues.apache.org/jira/browse/MNG-6964
 #[test]
 fn test_mng_6964() {
-    let a = Version::new("1-0.alpha").unwrap();
-    let b = Version::new("1-0.beta").unwrap();
-    let c = Version::new("1").unwrap();
+    let a = Version::parse("1-0.alpha").unwrap();
+    let b = Version::parse("1-0.beta").unwrap();
+    let c = Version::parse("1").unwrap();
 
     assert_eq!(a.partial_cmp(&c), Some(Ordering::Less)); // Now a < c, but before MNG-6964 they were equal
     assert_eq!(b.partial_cmp(&c), Some(Ordering::Less)); // Now b < c, but before MNG-6964 they were equal
@@ -366,14 +366,14 @@ fn test_mng_7644() {
 
     for qual in quals {
         // 1.0.0.X1 < 1.0.0-X2 for any string x
-        let a = Version::new(&format!("1.0.0.{}1", qual)).unwrap();
-        let b = Version::new(&format!("1.0.0-{}2", qual)).unwrap();
+        let a = Version::parse(&format!("1.0.0.{}1", qual)).unwrap();
+        let b = Version::parse(&format!("1.0.0-{}2", qual)).unwrap();
         assert_eq!(a.partial_cmp(&b), Some(Ordering::Less));
 
         // 2.0.X == 2-X == 2.0.0.X for any string x
-        let c = Version::new(&format!("2-{}", qual)).unwrap();
-        let d = Version::new(&format!("2.0.{}", qual)).unwrap();
-        let e = Version::new(&format!("2.0.0.{}", qual)).unwrap();
+        let c = Version::parse(&format!("2-{}", qual)).unwrap();
+        let d = Version::parse(&format!("2.0.{}", qual)).unwrap();
+        let e = Version::parse(&format!("2.0.0.{}", qual)).unwrap();
         assert_eq!(c.partial_cmp(&d), Some(Ordering::Equal)); // previously ordered, now equals
         assert_eq!(c.partial_cmp(&e), Some(Ordering::Equal)); // previously ordered, now equals
         assert_eq!(d.partial_cmp(&e), Some(Ordering::Equal)); // previously ordered, now equals
