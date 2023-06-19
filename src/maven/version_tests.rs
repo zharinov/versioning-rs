@@ -16,7 +16,11 @@ use serde::ser::{Serialize, SerializeStruct, Serializer};
 #[case("000123000", 123000)]
 fn parse_number(#[case] input: &str, #[case] expected: u64) {
     let (_, res) = number(input).unwrap();
-    assert_eq!(res, RawToken::Num(expected));
+    if let RawToken::Num(res) = res {
+        assert_eq!(res, expected);
+    } else {
+        panic!("Expected RawToken::Num, got {:?}", res);
+    }
 }
 
 #[rstest]
@@ -28,7 +32,11 @@ fn parse_number(#[case] input: &str, #[case] expected: u64) {
 #[case("foo-bar", "foo")]
 fn parse_qualifier(#[case] input: &str, #[case] expected: &str) {
     let (_, res) = qualifier(input).unwrap();
-    assert_eq!(res, RawToken::Qual(expected));
+    if let RawToken::Qual(res) = res {
+        assert_eq!(res, expected);
+    } else {
+        panic!("Expected RawToken::Qual, got {:?}", res);
+    }
 }
 
 impl Serialize for Separator {

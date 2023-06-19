@@ -7,7 +7,7 @@ use winnow::combinator::{alt, eof, repeat};
 use winnow::token::take_while;
 use winnow::{IResult, Parser};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 enum RawToken<'a> {
     Num(u64),
     Qual(&'a str),
@@ -21,13 +21,13 @@ enum Separator {
     Hyphen,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 enum TokenValue {
     Qualifier(String),
     Number(u64),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 struct Token {
     prefix: Separator,
     value: TokenValue,
@@ -226,7 +226,7 @@ fn cmp_tokens(left: &Token, right: &Token) -> Ordering {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 struct Version {
     tokens: Vec<Token>,
 }
@@ -261,29 +261,48 @@ fn get_null_token(counterpart: &Token) -> Token {
     }
 }
 
+#[inline]
+fn cmp(x: &Version, y: &Version) -> Ordering {
+    let left_len = x.tokens.len();
+    let right_len = y.tokens.len();
+    let max_len = left_len.max(right_len);
+
+    for i in 0..max_len {
+        let left = x.tokens.get(i);
+        let right = y.tokens.get(i);
+
+        let ordering = match (left, right) {
+            (Some(left), Some(right)) => cmp_tokens(left, right),
+            (Some(left), None) => cmp_tokens(left, &get_null_token(left)),
+            (None, Some(right)) => cmp_tokens(&get_null_token(right), right),
+            _ => unreachable!(),
+        };
+
+        if ordering != Ordering::Equal {
+            return ordering;
+        }
+    }
+
+    Ordering::Equal
+}
+
+impl PartialEq for Version {
+    fn eq(&self, other: &Version) -> bool {
+        cmp(self, other) == Ordering::Equal
+    }
+}
+
+impl Eq for Version {}
+
 impl PartialOrd for Version {
     fn partial_cmp(&self, other: &Version) -> Option<Ordering> {
-        let left_len = self.tokens.len();
-        let right_len = other.tokens.len();
-        let max_len = left_len.max(right_len);
+        Some(cmp(self, other))
+    }
+}
 
-        for i in 0..max_len {
-            let left = self.tokens.get(i);
-            let right = other.tokens.get(i);
-
-            let ordering = match (left, right) {
-                (Some(left), Some(right)) => cmp_tokens(left, right),
-                (Some(left), None) => cmp_tokens(left, &get_null_token(left)),
-                (None, Some(right)) => cmp_tokens(&get_null_token(right), right),
-                _ => unreachable!(),
-            };
-
-            if ordering != Ordering::Equal {
-                return Some(ordering);
-            }
-        }
-
-        Some(Ordering::Equal)
+impl Ord for Version {
+    fn cmp(&self, other: &Version) -> Ordering {
+        cmp(self, other)
     }
 }
 
