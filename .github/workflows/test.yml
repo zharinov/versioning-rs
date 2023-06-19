@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  
   pull_request:
     branches:
       - main
@@ -31,6 +32,7 @@ jobs:
           rustup default ${{ matrix.toolchain }}
           rustup component add clippy
           rustup component add rustfmt
+          rustup component add llvm-tools-preview
 
       - name: Toolchain info
         run: |
@@ -44,8 +46,8 @@ jobs:
           cache-all-crates: "true"
           cache-on-failure: "true"
 
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Check package
         run: cargo check
@@ -57,7 +59,19 @@ jobs:
         run: cargo clippy -- -D warnings -A dead_code
 
       - name: Test
-        run: cargo test
+        env:
+          TEST_ONLY: cargo test
+          TEST_COVERAGE: |
+            cargo llvm-cov test \
+              --all-features \
+              --workspace \
+              --codecov \
+              --output-path codecov.json \
+              --ignore-filename-regex '_tests\.rs'
+        run: ${{ matrix.toolchain == 'stable' && env.TEST_COVERAGE || env.TEST_ONLY }}
 
-      - name: Build
-        run: cargo build --release
+      - name: Upload coverage to Codecov
+        if: matrix.toolchain == 'stable'
+        uses: codecov/codecov-action@v3.1.4
+        with:
+          files: codecov.json
