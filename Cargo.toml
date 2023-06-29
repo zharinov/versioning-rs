@@ -10,7 +10,7 @@ winnow = "0.4.7"
 rstest = "0.17.0"
 insta = { version = "1.30.0", features = ["yaml"] }
 serde = "1.0.164"
-itertools = "0.10.5"
+itertools = "0.11.0"
 
 [profile.dev.package.insta]
 opt-level = 3
