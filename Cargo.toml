@@ -1,6 +1,6 @@
 [package]
 name = "verver"
-description = "Utilities for parsing, comparing, and manipulating version numbers and ranges."
+description = "Utilities for parsing, comparing, and manipulating version numbers and ranges"
 repository = "https://github.com/zharinov/verver"
 version = "0.0.1"
 edition = "2021"
