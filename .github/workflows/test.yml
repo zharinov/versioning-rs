@@ -41,7 +41,7 @@ jobs:
           cargo clippy --version
 
       - name: Using cache
-        uses: Swatinem/rust-cache@v2.5.1
+        uses: Swatinem/rust-cache@v2.7.3
         with:
           cache-all-crates: "true"
           cache-on-failure: "true"
