@@ -294,15 +294,15 @@ impl PartialEq for Version {
 
 impl Eq for Version {}
 
-impl PartialOrd for Version {
-    fn partial_cmp(&self, other: &Version) -> Option<Ordering> {
-        Some(cmp(self, other))
-    }
-}
-
 impl Ord for Version {
     fn cmp(&self, other: &Version) -> Ordering {
         cmp(self, other)
+    }
+}
+
+impl PartialOrd for Version {
+    fn partial_cmp(&self, other: &Version) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
