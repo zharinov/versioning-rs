@@ -8,8 +8,8 @@ winnow = "0.4.7"
 
 [dev-dependencies]
 rstest = "0.18.2"
-insta = { version = "1.31.0", features = ["yaml"] }
-serde = "1.0.171"
+insta = { version = "1.35.1", features = ["yaml"] }
+serde = "1.0.197"
 itertools = "0.12.1"
 
 [profile.dev.package.insta]
