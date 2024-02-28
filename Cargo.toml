@@ -1,7 +1,10 @@
 [package]
 name = "verver"
-version = "0.1.0"
+description = "Utilities for parsing, comparing, and manipulating version numbers and ranges."
+repository = "https://github.com/zharinov/verver"
+version = "0.0.1"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
 winnow = "0.4.7"
