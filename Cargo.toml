@@ -7,7 +7,7 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-winnow = "0.4.7"
+winnow = "0.6.5"
 
 [dev-dependencies]
 rstest = "0.18.2"
