@@ -3,9 +3,9 @@
 use std::cmp::Ordering;
 
 use winnow::ascii::digit1;
-use winnow::combinator::{alt, eof, repeat};
+use winnow::combinator::{alt, repeat};
 use winnow::token::take_while;
-use winnow::{IResult, Parser};
+use winnow::{PResult, Parser};
 
 #[derive(Debug)]
 enum RawToken<'a> {
@@ -33,7 +33,7 @@ struct Token {
     value: TokenValue,
 }
 
-fn number(input: &str) -> IResult<&str, RawToken> {
+fn number<'a>(input: &mut &'a str) -> PResult<RawToken<'a>> {
     digit1
         .try_map(|s| -> Result<RawToken, std::num::ParseIntError> {
             let num = str::parse::<u64>(s)?;
@@ -42,7 +42,7 @@ fn number(input: &str) -> IResult<&str, RawToken> {
         .parse_next(input)
 }
 
-fn qualifier(input: &str) -> IResult<&str, RawToken> {
+fn qualifier<'a>(input: &mut &'a str) -> PResult<RawToken<'a>> {
     take_while(
         1..,
         |c: char| matches!(c, 'a'..='z' | 'A'..='Z' | '+' | '_'),
@@ -51,19 +51,19 @@ fn qualifier(input: &str) -> IResult<&str, RawToken> {
     .parse_next(input)
 }
 
-fn dot_separator(input: &str) -> IResult<&str, RawToken> {
+fn dot_separator<'a>(input: &mut &'a str) -> PResult<RawToken<'a>> {
     '.'.map(|_| RawToken::DotChar).parse_next(input)
 }
 
-fn hyphen_separator(input: &str) -> IResult<&str, RawToken> {
+fn hyphen_separator<'a>(input: &mut &'a str) -> PResult<RawToken<'a>> {
     '-'.map(|_| RawToken::HyphenChar).parse_next(input)
 }
 
-fn raw_token(input: &str) -> IResult<&str, RawToken> {
+fn raw_token<'a>(input: &mut &'a str) -> PResult<RawToken<'a>> {
     alt((number, dot_separator, hyphen_separator, qualifier)).parse_next(input)
 }
 
-fn raw_tokens(input: &str) -> IResult<&str, Vec<RawToken>> {
+fn raw_tokens<'a>(input: &mut &'a str) -> PResult<Vec<RawToken<'a>>> {
     repeat(1.., raw_token).parse_next(input)
 }
 
@@ -166,10 +166,10 @@ fn parse_raw_tokens(raw_tokens: Vec<RawToken>) -> Vec<Token> {
     tokens
 }
 
-fn version_tokens(input: &str) -> IResult<&str, Version> {
+fn version_tokens(input: &mut &'_ str) -> PResult<Version> {
     raw_tokens
         .map(parse_raw_tokens)
-        .map(Version::from_tokens)
+        .map(|tokens| Version { tokens })
         .parse_next(input)
 }
 
@@ -231,19 +231,11 @@ struct Version {
     tokens: Vec<Token>,
 }
 
-impl Version {
-    fn from_tokens(tokens: Vec<Token>) -> Version {
-        Version { tokens }
-    }
+impl std::str::FromStr for Version {
+    type Err = String;
 
-    fn parse(input: &str) -> Option<Version> {
-        match (version_tokens, eof)
-            .map(|(version, _)| version)
-            .parse_next(input)
-        {
-            Ok((_, version)) => Some(version),
-            _ => None,
-        }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        version_tokens.parse(s).map_err(|e| e.to_string())
     }
 }
 
