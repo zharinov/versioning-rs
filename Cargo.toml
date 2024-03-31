@@ -11,7 +11,7 @@ winnow = "0.6.5"
 
 [dev-dependencies]
 rstest = "0.18.2"
-insta = { version = "1.36.1", features = ["yaml"] }
+insta = { version = "1.38.0", features = ["yaml"] }
 serde = "1.0.197"
 itertools = "0.12.1"
 
