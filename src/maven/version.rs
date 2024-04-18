@@ -7,6 +7,8 @@ use winnow::combinator::{alt, repeat};
 use winnow::token::take_while;
 use winnow::{PResult, Parser};
 
+use crate::traits::Version;
+
 #[derive(Debug)]
 enum RawToken<'a> {
     Num(u64),
@@ -166,10 +168,10 @@ fn parse_raw_tokens(raw_tokens: Vec<RawToken>) -> Vec<Token> {
     tokens
 }
 
-fn version_tokens(input: &mut &'_ str) -> PResult<Version> {
+fn version_tokens(input: &mut &'_ str) -> PResult<MavenVersion> {
     raw_tokens
         .map(parse_raw_tokens)
-        .map(|tokens| Version { tokens })
+        .map(|tokens| MavenVersion { tokens })
         .parse_next(input)
 }
 
@@ -227,11 +229,11 @@ fn cmp_tokens(left: &Token, right: &Token) -> Ordering {
 }
 
 #[derive(Debug)]
-struct Version {
+struct MavenVersion {
     tokens: Vec<Token>,
 }
 
-impl std::str::FromStr for Version {
+impl std::str::FromStr for MavenVersion {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -254,7 +256,7 @@ fn get_null_token(counterpart: &Token) -> Token {
 }
 
 #[inline]
-fn cmp(x: &Version, y: &Version) -> Ordering {
+fn cmp(x: &MavenVersion, y: &MavenVersion) -> Ordering {
     let left_len = x.tokens.len();
     let right_len = y.tokens.len();
     let max_len = left_len.max(right_len);
@@ -278,25 +280,27 @@ fn cmp(x: &Version, y: &Version) -> Ordering {
     Ordering::Equal
 }
 
-impl PartialEq for Version {
-    fn eq(&self, other: &Version) -> bool {
+impl PartialEq for MavenVersion {
+    fn eq(&self, other: &MavenVersion) -> bool {
         cmp(self, other) == Ordering::Equal
     }
 }
 
-impl Eq for Version {}
+impl Eq for MavenVersion {}
 
-impl Ord for Version {
-    fn cmp(&self, other: &Version) -> Ordering {
+impl Ord for MavenVersion {
+    fn cmp(&self, other: &MavenVersion) -> Ordering {
         cmp(self, other)
     }
 }
 
-impl PartialOrd for Version {
-    fn partial_cmp(&self, other: &Version) -> Option<Ordering> {
+impl PartialOrd for MavenVersion {
+    fn partial_cmp(&self, other: &MavenVersion) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
+
+impl Version for MavenVersion {}
 
 #[cfg(test)]
 #[path = "version_tests.rs"]
