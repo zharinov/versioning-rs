@@ -145,8 +145,8 @@ fn equivalent_tokenization(#[case] input: &str, #[case] expected: &str) {
 #[test]
 fn version_constructor() {
     assert_eq!(
-        Version::from_str("1.2.3").unwrap(),
-        Version {
+        MavenVersion::from_str("1.2.3").unwrap(),
+        MavenVersion {
             tokens: vec![
                 Token {
                     prefix: Separator::Hyphen,
@@ -164,7 +164,7 @@ fn version_constructor() {
         }
     );
 
-    assert!(Version::from_str("1.2.3=#!").is_err());
+    assert!(MavenVersion::from_str("1.2.3=#!").is_err());
 }
 
 #[rstest]
@@ -218,8 +218,8 @@ fn version_constructor() {
 #[case("1.0.0.x", "1-x")]
 #[case("1.x", "1.0.0-x")]
 fn equality(#[case] left: &str, #[case] right: &str) {
-    let left = Version::from_str(left).unwrap();
-    let right = Version::from_str(right).unwrap();
+    let left = MavenVersion::from_str(left).unwrap();
+    let right = MavenVersion::from_str(right).unwrap();
     assert_eq!(left.partial_cmp(&right), Some(Ordering::Equal));
     assert_eq!(right.partial_cmp(&left), Some(Ordering::Equal));
 }
@@ -248,8 +248,8 @@ fn equality(#[case] left: &str, #[case] right: &str) {
 #[case("2.0.1", "2.0.1-123")]
 #[case("2.0.1-xyz", "2.0.1-123")]
 fn comparison(#[case] left: &str, #[case] right: &str) {
-    let left = Version::from_str(left).unwrap();
-    let right = Version::from_str(right).unwrap();
+    let left = MavenVersion::from_str(left).unwrap();
+    let right = MavenVersion::from_str(right).unwrap();
     assert_eq!(left.partial_cmp(&right), Some(Ordering::Less));
     assert_eq!(right.partial_cmp(&left), Some(Ordering::Greater));
 }
@@ -257,9 +257,9 @@ fn comparison(#[case] left: &str, #[case] right: &str) {
 /// @see https://issues.apache.org/jira/browse/MNG-5568
 #[test]
 fn mng_5568() {
-    let a = Version::from_str("6.1.0").unwrap();
-    let b = Version::from_str("6.1.0rc3").unwrap();
-    let c = Version::from_str("6.1H.5-beta").unwrap(); // this is the unusual version string, with 'H' in the middle
+    let a = MavenVersion::from_str("6.1.0").unwrap();
+    let b = MavenVersion::from_str("6.1.0rc3").unwrap();
+    let c = MavenVersion::from_str("6.1H.5-beta").unwrap(); // this is the unusual version string, with 'H' in the middle
 
     assert_eq!(b.partial_cmp(&a), Some(Ordering::Less)); // classical
     assert_eq!(b.partial_cmp(&c), Some(Ordering::Less)); // now b < c, but before MNG-5568, we had b > c
@@ -269,10 +269,10 @@ fn mng_5568() {
 /// @see https://jira.apache.org/jira/browse/MNG-6572
 #[test]
 fn mng_6572() {
-    let a = Version::from_str("20190126.230843").unwrap(); // resembles a SNAPSHOT
-    let b = Version::from_str("1234567890.12345").unwrap(); // 10 digit number
-    let c = Version::from_str("123456789012345.1H.5-beta").unwrap(); // 15 digit number
-    let d = Version::from_str("12345678901234567890.1H.5-beta").unwrap(); // 20 digit number
+    let a = MavenVersion::from_str("20190126.230843").unwrap(); // resembles a SNAPSHOT
+    let b = MavenVersion::from_str("1234567890.12345").unwrap(); // 10 digit number
+    let c = MavenVersion::from_str("123456789012345.1H.5-beta").unwrap(); // 15 digit number
+    let d = MavenVersion::from_str("12345678901234567890.1H.5-beta").unwrap(); // 20 digit number
 
     assert_eq!(a.partial_cmp(&b), Some(Ordering::Less));
     assert_eq!(b.partial_cmp(&c), Some(Ordering::Less));
@@ -308,8 +308,8 @@ fn version_equal_with_leading_zeroes() {
 
     for combination in versions.into_iter().combinations(2) {
         let (left, right) = (combination[0], combination[1]);
-        let left = Version::from_str(left).unwrap();
-        let right = Version::from_str(right).unwrap();
+        let left = MavenVersion::from_str(left).unwrap();
+        let right = MavenVersion::from_str(right).unwrap();
         assert_eq!(left.partial_cmp(&right), Some(Ordering::Equal));
         assert_eq!(right.partial_cmp(&left), Some(Ordering::Equal));
     }
@@ -341,8 +341,8 @@ fn test_version_zero_equal_with_leading_zeroes() {
 
     for combination in versions.into_iter().combinations(2) {
         let (left, right) = (combination[0], combination[1]);
-        let left = Version::from_str(left).unwrap();
-        let right = Version::from_str(right).unwrap();
+        let left = MavenVersion::from_str(left).unwrap();
+        let right = MavenVersion::from_str(right).unwrap();
         assert_eq!(left.partial_cmp(&right), Some(Ordering::Equal));
         assert_eq!(right.partial_cmp(&left), Some(Ordering::Equal));
     }
@@ -351,9 +351,9 @@ fn test_version_zero_equal_with_leading_zeroes() {
 /// @see https://issues.apache.org/jira/browse/MNG-6964
 #[test]
 fn test_mng_6964() {
-    let a = Version::from_str("1-0.alpha").unwrap();
-    let b = Version::from_str("1-0.beta").unwrap();
-    let c = Version::from_str("1").unwrap();
+    let a = MavenVersion::from_str("1-0.alpha").unwrap();
+    let b = MavenVersion::from_str("1-0.beta").unwrap();
+    let c = MavenVersion::from_str("1").unwrap();
 
     assert_eq!(a.partial_cmp(&c), Some(Ordering::Less)); // Now a < c, but before MNG-6964 they were equal
     assert_eq!(b.partial_cmp(&c), Some(Ordering::Less)); // Now b < c, but before MNG-6964 they were equal
@@ -377,16 +377,23 @@ fn test_mng_7644() {
 
     for qual in quals {
         // 1.0.0.X1 < 1.0.0-X2 for any string x
-        let a = Version::from_str(&format!("1.0.0.{}1", qual)).unwrap();
-        let b = Version::from_str(&format!("1.0.0-{}2", qual)).unwrap();
+        let a = MavenVersion::from_str(&format!("1.0.0.{}1", qual)).unwrap();
+        let b = MavenVersion::from_str(&format!("1.0.0-{}2", qual)).unwrap();
         assert_eq!(a.partial_cmp(&b), Some(Ordering::Less));
 
         // 2.0.X == 2-X == 2.0.0.X for any string x
-        let c = Version::from_str(&format!("2-{}", qual)).unwrap();
-        let d = Version::from_str(&format!("2.0.{}", qual)).unwrap();
-        let e = Version::from_str(&format!("2.0.0.{}", qual)).unwrap();
+        let c = MavenVersion::from_str(&format!("2-{}", qual)).unwrap();
+        let d = MavenVersion::from_str(&format!("2.0.{}", qual)).unwrap();
+        let e = MavenVersion::from_str(&format!("2.0.0.{}", qual)).unwrap();
         assert_eq!(c.partial_cmp(&d), Some(Ordering::Equal)); // previously ordered, now equals
         assert_eq!(c.partial_cmp(&e), Some(Ordering::Equal)); // previously ordered, now equals
         assert_eq!(d.partial_cmp(&e), Some(Ordering::Equal)); // previously ordered, now equals
     }
+}
+
+#[test]
+fn test_compatible() {
+    let a = MavenVersion::from_str("1.0.0").unwrap();
+    let b = MavenVersion::from_str("2.0.0").unwrap();
+    assert!(a.is_compatible(&b));
 }
