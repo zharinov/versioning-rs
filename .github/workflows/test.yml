@@ -72,7 +72,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: matrix.toolchain == 'stable'
-        uses: codecov/codecov-action@v4.3.0
+        uses: codecov/codecov-action@v4.4.1
         with:
           files: codecov.json
           token: ${{ secrets.CODECOV_TOKEN }}
