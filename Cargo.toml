@@ -4,6 +4,7 @@ description = "Utilities for parsing, comparing, and manipulating version number
 repository = "https://github.com/zharinov/verver"
 version = "0.0.1"
 edition = "2021"
+rust-version = "1.65.0"
 license = "MIT"
 
 [dependencies]
