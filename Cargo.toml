@@ -11,7 +11,7 @@ license = "MIT"
 winnow = "0.6.7"
 
 [dev-dependencies]
-rstest = "= 0.21.0"
+rstest = "= 0.23.0"
 insta = { version = "= 1.39.0", features = ["yaml"] }
 serde = "= 1.0.203"
 itertools = "= 0.13.0"
